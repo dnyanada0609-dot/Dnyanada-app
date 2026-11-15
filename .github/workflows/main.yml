@@ -2,12 +2,16 @@ name: Build Dnyanada APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
+      GRADLE_OPTS: "-Xmx4g -Dorg.gradle.daemon=false"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,10 +27,40 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Auto-generate Android App in Cloud
+      - name: Prepare and Optimize Web Files
         run: |
-          mkdir www
-          unzip app.zip -d www/
+          mkdir -p temp_extract www
+          ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            unzip -o "$ZIP_FILE" -d temp_extract/
+          fi
+          HTML_FILE=$(find temp_extract . -maxdepth 3 -name "*.html" | head -n 1)
+          cp "$HTML_FILE" www/index.html
+          rm -rf temp_extract
+
+          # क्लाउडमध्येच मोठ्या PNG इमेजेस कॉम्प्रेस करून फाईल साईज 44MB वरून ~10MB करणे (जेणेकरून Exit Code 9 येणार नाही)
+          pip install pillow || true
+          python3 -c '
+          import re, base64, io
+          try:
+              from PIL import Image
+              with open("www/index.html", "r", encoding="utf-8") as f:
+                  html = f.read()
+              def shrink(m):
+                  img = Image.open(io.BytesIO(base64.b64decode(m.group(1)))).convert("RGB")
+                  buf = io.BytesIO()
+                  img.save(buf, format="JPEG", quality=80, optimize=True)
+                  return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
+              new_html = re.sub(r"data:image/png;base64,([A-Za-z0-9+/=]+)", shrink, html)
+              with open("www/index.html", "w", encoding="utf-8") as f:
+                  f.write(new_html)
+              print("Optimized HTML successfully")
+          except Exception as e:
+              print("Skipping optimization:", e)
+          '
+
+      - name: Build Capacitor Android Project
+        run: |
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
           npx cap init "Dnyanada" "com.dnyanada.app" --web-dir www
