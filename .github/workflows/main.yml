@@ -27,24 +27,22 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Prepare and Optimize Web Files
+- name: Prepare and Optimize Web Files
         run: |
           mkdir -p temp_extract www
-          ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1)
-          if [ -n "$ZIP_FILE" ]; then
-            unzip -o "$ZIP_FILE" -d temp_extract/
-          fi
-          HTML_FILE=$(find temp_extract . -maxdepth 3 -name "*.html" | head -n 1)
+          # सर्व प्रकारच्या archive फाईल्स (zip, rar, 7z) उघडण्यासाठी 7z वापरा
+          7z x App.zip -otemp_extract/ || unzip -o App.zip -d temp_extract/ || cp App.zip temp_extract/index.html
+          
+          HTML_FILE=$(find temp_extract -type f | head -n 1)
           cp "$HTML_FILE" www/index.html
           rm -rf temp_extract
 
-          # क्लाउडमध्येच मोठ्या PNG इमेजेस कॉम्प्रेस करून फाईल साईज 44MB वरून ~10MB करणे (जेणेकरून Exit Code 9 येणार नाही)
           pip install pillow || true
           python3 -c '
           import re, base64, io
           try:
               from PIL import Image
-              with open("www/index.html", "r", encoding="utf-8") as f:
+              with open("www/index.html", "r", encoding="utf-8", errors="ignore") as f:
                   html = f.read()
               def shrink(m):
                   img = Image.open(io.BytesIO(base64.b64decode(m.group(1)))).convert("RGB")
@@ -57,6 +55,7 @@ jobs:
               print("Optimized HTML successfully")
           except Exception as e:
               print("Skipping optimization:", e)
+          '
           '
 
       - name: Build Capacitor Android Project
