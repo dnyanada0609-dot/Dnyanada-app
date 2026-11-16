@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: "--max-old-space-size=6144"
-      GRADLE_OPTS: "-Xmx4g -Dorg.gradle.daemon=false"
 
     steps:
       - name: Checkout repository
@@ -27,49 +26,17 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-- name: Prepare and Optimize Web Files
+      - name: Join HTML Parts and Build APK
         run: |
-          mkdir -p temp_extract www
-          # सर्व प्रकारच्या archive फाईल्स (zip, rar, 7z) उघडण्यासाठी 7z वापरा
-          7z x App.zip -otemp_extract/ || unzip -o App.zip -d temp_extract/ || cp App.zip temp_extract/index.html
-          
-          HTML_FILE=$(find temp_extract -type f | head -n 1)
-          cp "$HTML_FILE" www/index.html
-          rm -rf temp_extract
-
-          pip install pillow || true
-          python3 -c '
-          import re, base64, io
-          try:
-              from PIL import Image
-              with open("www/index.html", "r", encoding="utf-8", errors="ignore") as f:
-                  html = f.read()
-              def shrink(m):
-                  img = Image.open(io.BytesIO(base64.b64decode(m.group(1)))).convert("RGB")
-                  buf = io.BytesIO()
-                  img.save(buf, format="JPEG", quality=80, optimize=True)
-                  return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("utf-8")
-              new_html = re.sub(r"data:image/png;base64,([A-Za-z0-9+/=]+)", shrink, html)
-              with open("www/index.html", "w", encoding="utf-8") as f:
-                  f.write(new_html)
-              print("Optimized HTML successfully")
-          except Exception as e:
-              print("Skipping optimization:", e)
-          '
-          '
-
-      - name: Build Capacitor Android Project
-        run: |
+          mkdir -p www
+          cat part1.txt part2.txt part3.txt part4.txt > www/index.html
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
           npx cap init "Dnyanada" "com.dnyanada.app" --web-dir www
           npx cap add android
           npx cap sync android
           chmod +x android/gradlew
-
-      - name: Build Debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug
+          cd android && ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
