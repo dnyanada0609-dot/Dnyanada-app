@@ -90,7 +90,7 @@ jobs:
                                   try { root.removeView(printWebView); printWebView.destroy(); } catch (Exception ignored) {}
                               }
                               WebView webView = new WebView(MainActivity.this);
-                              webView.setAlpha(0.01f);
+                              webView.setAlpha(1.0f);
                               root.addView(webView, new FrameLayout.LayoutParams(1080, 1600));
                               printWebView = webView;
                               webView.getSettings().setJavaScriptEnabled(true);
@@ -116,7 +116,7 @@ jobs:
                                                   .build();
                                               pm.print(job,adapter,attrs);
                                               // Keep WebView referenced while Android print preview is active.
-                                          },350);
+                                          },1000);
                                       });
                                   }
                               });
