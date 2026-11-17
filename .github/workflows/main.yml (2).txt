@@ -1,0 +1,133 @@
+name: Build Dnyanada APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Join HTML Parts and Build APK
+        run: |
+          mkdir -p www
+          cat part1.txt part2.txt part3.txt part4.txt > www/index.html
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npx cap init "Dnyanada" "com.dnyanada.app" --web-dir www
+          npx cap add android
+
+          cat << 'EOF' >> android/app/build.gradle
+          dependencies {
+              implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))
+          }
+          EOF
+
+          pip install pillow || true
+          python3 - << 'PYEOF'
+          import os, glob
+          from PIL import Image
+          logos = glob.glob("logo.*") + glob.glob("*.png") + glob.glob("*.jpg")
+          if logos:
+              img = Image.open(logos[0]).convert("RGBA")
+              sizes = {"mipmap-mdpi":48,"mipmap-hdpi":72,"mipmap-xhdpi":96,"mipmap-xxhdpi":144,"mipmap-xxxhdpi":192}
+              for folder, sz in sizes.items():
+                  out_dir = f"android/app/src/main/res/{folder}"
+                  os.makedirs(out_dir, exist_ok=True)
+                  resized = img.resize((sz, sz), Image.LANCZOS)
+                  resized.save(f"{out_dir}/ic_launcher.png")
+                  resized.save(f"{out_dir}/ic_launcher_round.png")
+                  resized.save(f"{out_dir}/ic_launcher_foreground.png")
+          PYEOF
+
+          cat << 'EOF' > android/app/src/main/java/com/dnyanada/app/MainActivity.java
+          package com.dnyanada.app;
+          import android.content.Context;
+          import android.os.Bundle;
+          import android.print.PrintAttributes;
+          import android.print.PrintDocumentAdapter;
+          import android.print.PrintManager;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.Toast;
+          import androidx.activity.OnBackPressedCallback;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              private WebView printWebView;
+              private long backPressedTime = 0;
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getBridge().getWebView().addJavascriptInterface(new Object() {
+                      @JavascriptInterface
+                      public void printHtml(final String html, final String title) {
+                          runOnUiThread(() -> {
+                              if (html == null || html.trim().isEmpty()) {
+                                  Toast.makeText(MainActivity.this,"Print HTML is empty",Toast.LENGTH_LONG).show();
+                                  return;
+                              }
+                              WebView webView = new WebView(MainActivity.this);
+                              printWebView = webView;
+                              webView.getSettings().setJavaScriptEnabled(true);
+                              webView.getSettings().setDefaultTextEncodingName("UTF-8");
+                              webView.setWebViewClient(new WebViewClient() {
+                                  @Override public void onPageFinished(WebView view, String url) {
+                                      // Wait for web fonts and images before creating the print adapter.
+                                      view.evaluateJavascript("(function(){return Promise.all([document.fonts?document.fonts.ready:Promise.resolve(),Promise.all(Array.from(document.images).map(function(i){return i.complete?Promise.resolve():new Promise(function(r){i.onload=r;i.onerror=r;setTimeout(r,4000)})}))]).then(function(){return true})})()", result -> {
+                                          view.postDelayed(() -> {
+                                              if (printWebView != view || isFinishing()) return;
+                                              PrintManager pm = (PrintManager)getSystemService(Context.PRINT_SERVICE);
+                                              String job = (title != null && !title.isEmpty()) ? title : "Dnyanada_Report";
+                                              PrintDocumentAdapter adapter = view.createPrintDocumentAdapter(job);
+                                              PrintAttributes attrs = new PrintAttributes.Builder()
+                                                  .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                                                  .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                                                  .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
+                                                  .build();
+                                              pm.print(job,adapter,attrs);
+                                              // Keep WebView referenced while Android print preview is active.
+                                          },350);
+                                      });
+                                  }
+                              });
+                              webView.loadDataWithBaseURL("file:///android_asset/public/",html,"text/html","UTF-8",null);
+                          });
+                      }
+                  }, "AndroidPrint");
+                  getOnBackPressedDispatcher().addCallback(this,new OnBackPressedCallback(true){
+                      @Override public void handleOnBackPressed(){
+                          WebView wv=getBridge().getWebView();
+                          if(wv!=null && wv.canGoBack()){wv.goBack();}
+                          else if(System.currentTimeMillis()-backPressedTime<2000){finish();}
+                          else{backPressedTime=System.currentTimeMillis();Toast.makeText(MainActivity.this,"Press back again to exit",Toast.LENGTH_SHORT).show();}
+                      }
+                  });
+              }
+          }
+          EOF
+
+          npx cap sync android
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dnyanada-Smart-Teacher-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
