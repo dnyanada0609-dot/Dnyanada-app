@@ -115,12 +115,12 @@ public class MainActivity extends BridgeActivity {
         view.loadDataWithBaseURL("file:///android_asset/public/", html, "text/html", "UTF-8", null);
     }
 
-    @Override protected void onPause() {
+    @Override public void onPause() {
         if (printPreviewLaunched) leftForPrintPreview = true;
         super.onPause();
     }
 
-    @Override protected void onResume() {
+    @Override public void onResume() {
         super.onResume();
         if (leftForPrintPreview) {
             leftForPrintPreview = false;
@@ -130,7 +130,7 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    @Override protected void onDestroy() {
+    @Override public void onDestroy() {
         if (printWebView != null) {
             try {
                 FrameLayout root = findViewById(android.R.id.content);
