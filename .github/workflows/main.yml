@@ -26,7 +26,7 @@ jobs:
       - name: Join HTML Parts and Build APK
         run: |
           mkdir -p www
-                    cat part1_CCE_Native_Relay_V4.txt part2_CCE_Native_Relay_V4.txt part3_CCE_Native_Relay_V4.txt part4_CCE_Native_Relay_V4.txt > www/index.html
+                    cat part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt > www/index.html
           npm init -y
           npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
           npx cap init "Dnyanada" "com.dnyanada.app" --web-dir www
