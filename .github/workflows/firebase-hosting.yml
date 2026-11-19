@@ -17,7 +17,7 @@ jobs:
       - name: Prepare login website
         run: |
           mkdir -p hosting-login
-          cp DNYANADA_Admin_Panel_V1.html hosting-login/index.html
+          cp DNYANADA_Admin_Panel_V2.html hosting-login/index.html
 
       - name: Deploy Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
