@@ -16,11 +16,9 @@ jobs:
 
       - name: Prepare login website
         run: |
-          mkdir -p hosting-login
-          cp DNYANADA_Admin_Panel_V5_Status_Fix.html hosting-login/index.html          mkdir -p hosting-login/teacher
-          mkdir -p hosting-login/teacher
-          cp DNYANADA_Teacher_Login_Only_V3.html hosting-login/teacher/index.html
-
+            mkdir -p hosting-login/teacher
+            cp DNYANADA_Admin_Panel_V5_Status_Fix.html hosting-login/index.html
+            cp DNYANADA_Teacher_Login_Only_V3.html hosting-login/teacher/index.html
       - name: Deploy Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
