@@ -23,7 +23,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-      - name: Join HTML Parts and Build APK
+      - name: Join HTML Parts and Prepare Android
         run: |
           mkdir -p www
           for part in part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt; do
@@ -36,11 +36,11 @@ jobs:
           npx cap init "Dnyanada" "com.dnyanada.app" --web-dir www
           npx cap add android
 
-          cat << 'EOF' >> android/app/build.gradle
+          cat << 'GRADLEEOF' >> android/app/build.gradle
           dependencies {
               implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))
           }
-          EOF
+          GRADLEEOF
 
           pip install pillow || true
           python3 - << 'PYEOF'
@@ -62,15 +62,37 @@ jobs:
           test -s MainActivity.java || { echo "Missing MainActivity.java"; exit 1; }
           mkdir -p android/app/src/main/java/com/dnyanada/app
           cp MainActivity.java android/app/src/main/java/com/dnyanada/app/MainActivity.java
-        
-                                  
-                  
 
           npx cap sync android
           chmod +x android/gradlew
-          cd android && ./gradlew assembleDebug
-      - name: Upload APK
+
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DNYANADA_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "Missing DNYANADA_KEYSTORE_BASE64 secret"; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/dnyanada-release.jks
+          test -s android/app/dnyanada-release.jks
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.DNYANADA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DNYANADA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.DNYANADA_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_PASSWORD" || { echo "Missing keystore password"; exit 1; }
+          test -n "$KEY_ALIAS" || { echo "Missing key alias"; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "Missing key password"; exit 1; }
+          cd android
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/dnyanada-release.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Dnyanada-Smart-Teacher-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Dnyanada-Signed-Release-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
