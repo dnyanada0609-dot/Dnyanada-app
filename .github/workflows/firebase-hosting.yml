@@ -17,7 +17,7 @@ jobs:
       - name: Prepare login website
         run: |
           mkdir -p hosting-login
-          cp DNYANADA_Spark_Login_Diagnostic_V2.html hosting-login/index.html
+          cp DNYANADA_Login_Fixed_V3.html hosting-login/index.html
 
       - name: Deploy Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
