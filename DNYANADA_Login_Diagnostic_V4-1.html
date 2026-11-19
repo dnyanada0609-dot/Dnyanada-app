@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="mr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DNYANADA — सुरक्षित लॉगिन तपासणी V4</title>
+<style>body{font-family:Arial,sans-serif;background:#edf3fa;margin:0;color:#182d4a}.wrap{max-width:430px;margin:30px auto;padding:18px}.panel{background:#fff;padding:25px;border-radius:16px;box-shadow:0 5px 20px #1a34521c}h1{font-size:23px;text-align:center}p{line-height:1.6}label{display:block;margin-top:14px;font-weight:bold}input,select{width:100%;box-sizing:border-box;padding:13px;border:1px solid #b9c6d5;border-radius:8px;font-size:16px;margin-top:6px}button{background:#1655aa;color:#fff;border:0;border-radius:8px;padding:13px;width:100%;font-size:16px;margin-top:18px}button:disabled{opacity:.6}.msg{margin-top:15px;white-space:pre-wrap}.hide{display:none}.muted{color:#65748a;font-size:13px}</style></head>
+<body><main class="wrap"><section class="panel"><h1>DNYANADA Smart Teacher App</h1><p class="muted" style="text-align:center">Firebase — स्वतंत्र लॉगिन तपासणी V4</p>
+<div id="login"><label for="kind">लॉगिन प्रकार</label><select id="kind"><option value="teacher">शिक्षक (ईमेल — चाचणी)</option><option value="admin">Admin (ईमेल)</option></select><label for="identity" id="idlabel">शिक्षकाचा Firebase ईमेल</label><input id="identity" type="email" autocomplete="username" placeholder="ईमेल"><label for="password">पासवर्ड</label><input id="password" type="password" autocomplete="current-password" placeholder="पासवर्ड"><button id="signin">लॉगिन करा</button></div>
+<div id="logged" class="hide"><h2 id="welcome"></h2><p id="license"></p><button id="signout">लॉगआउट</button></div><div class="msg" id="message" role="status"></div></section>
+<p class="muted">ही स्वतंत्र चाचणी आहे. शिक्षकांचे मोबाईल नंबर लॉगिन सुरक्षितपणे तयार करण्याचे काम बाकी आहे. या आवृत्तीत Firebase Authentication मध्ये नोंदवलेला ईमेल वापरावा. प्रत्यक्ष APK किंवा Admin खाते बदललेले नाही.</p></main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+'use strict';
+const firebaseConfig={apiKey:'AIzaSyAeOvBJxwIRD6rjRdTa7Ay-C9fFwYlHB1Y',authDomain:'dnyanada-app-17c4a.firebaseapp.com',projectId:'dnyanada-app-17c4a',storageBucket:'dnyanada-app-17c4a.firebasestorage.app',messagingSenderId:'97980812707',appId:'1:97980812707:web:4eef6c18836d47ba9f9e16',measurementId:'G-SZLXHGV1TE'};
+const $=id=>document.getElementById(id),say=s=>{$('message').textContent=s;};
+if(!window.firebase){say('Firebase SDK लोड झाले नाही. इंटरनेट तपासा.');}else{
+ firebase.initializeApp(firebaseConfig);const auth=firebase.auth(),db=firebase.firestore();
+ $('kind').onchange=()=>{$('idlabel').textContent=$('kind').value==='teacher'?'शिक्षकाचा Firebase ईमेल':'Admin ईमेल';};
+ $('signin').onclick=async()=>{
+  const email=$('identity').value.trim(),password=$('password').value;
+  if(!email||!password){say('ईमेल आणि पासवर्ड भरा.');return;}
+  try{$('signin').disabled=true;say('लॉगिन तपासत आहे...');await auth.signInWithEmailAndPassword(email,password);}
+  catch(e){say('लॉगिन अयशस्वी: '+(e.code||e.message));}
+  finally{$('signin').disabled=false;}
+ };
+ $('signout').onclick=()=>auth.signOut();
+ auth.onAuthStateChanged(async user=>{
+  if(!user){$('logged').classList.add('hide');$('login').classList.remove('hide');say('');return;}
+  $('login').classList.add('hide');$('logged').classList.remove('hide');$('welcome').textContent='खाते तपासत आहे...';$('license').textContent='';say('परवानगी तपासत आहे...');
+  try{
+   const admin=await db.collection('admins').doc(user.uid).get();
+   if(admin.exists&&admin.data().role==='admin'){$('welcome').textContent='Admin लॉगिन यशस्वी';$('license').textContent='Admin खाते ओळखले. शिक्षक खाते व्यवस्थापन पॅनेल पुढील टप्प्यात जोडायचे आहे.';say('');return;}
+   const teacher=await db.collection('teachers').doc(user.uid).get();
+   if(!teacher.exists){$('welcome').textContent='शिक्षक दस्तऐवज सापडला नाही';say('लॉगिन UID: '+user.uid+'\nFirestore teachers मध्ये याच UID चा दस्तऐवज तपासा.');return;}
+    const t=teacher.data();
+    if(t.role!=='teacher'||t.status!=='active'){$('welcome').textContent='शिक्षक खाते तपासणी अयशस्वी';say('लॉगिन UID: '+user.uid+'\nrole: '+JSON.stringify(t.role??null)+'\nstatus: '+JSON.stringify(t.status??null)+'\nअपेक्षित: role = teacher, status = active');return;}
+   const sub=await db.collection('subscriptions').doc(user.uid).get(),d=sub.exists?sub.data():null;
+   const start=d&&d.startDate&&typeof d.startDate.toDate==='function'?d.startDate.toDate():null;
+   const expiry=d&&d.expiryDate&&typeof d.expiryDate.toDate==='function'?d.expiryDate.toDate():null;
+   const now=new Date();
+   if(d&&d.status==='active'&&start&&expiry&&start<=now&&now<=expiry){
+    $('welcome').textContent='शिक्षक लॉगिन यशस्वी';
+    $('license').textContent='शिक्षक: '+(teacher.data().name||'')+'\nपरवाना: '+start.toLocaleDateString('mr-IN',{timeZone:'Asia/Kolkata'})+' ते '+expiry.toLocaleDateString('mr-IN',{timeZone:'Asia/Kolkata'})+'\nही फक्त लॉगिन चाचणी आहे; मुख्य ॲपचा प्रवेश दिलेला नाही.';
+    $('license').style.whiteSpace='pre-line';say('');
+   }else{$('welcome').textContent='परवाना उपलब्ध नाही';$('license').textContent='Admin कडून सक्रिय आणि वैध परवाना आवश्यक आहे.';say('लॉगिन UID: '+user.uid+'\nsubscription exists: '+sub.exists+'\nstatus: '+JSON.stringify(d?.status??null)+'\nstartDate: '+(start?start.toISOString():'अवैध/नाही')+'\nexpiryDate: '+(expiry?expiry.toISOString():'अवैध/नाही'));}
+  }catch(e){$('welcome').textContent='तपासणी अयशस्वी';$('license').textContent='Firestore परवानग्या किंवा इंटरनेट तपासा.';say(e.code||e.message);}
+ });
+}
+</script></body></html>
