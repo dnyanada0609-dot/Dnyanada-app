@@ -26,7 +26,11 @@ jobs:
       - name: Join HTML Parts and Build APK
         run: |
           mkdir -p www
-                    cat part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt > www/index.html
+          for part in part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt; do
+            test -s "$part" || { echo "Missing or empty: $part"; exit 1; }
+          done
+          cat part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt > www/index.html
+          test -s www/index.html || exit 1
           npm init -y
           npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
           npx cap init "Dnyanada" "com.dnyanada.app" --web-dir www
@@ -55,7 +59,9 @@ jobs:
                   resized.save(f"{out_dir}/ic_launcher_foreground.png")
           PYEOF
 
-                cp MainActivity.java android/app/src/main/java/com/dnyanada/app/MainActivity.java
+          test -s MainActivity.java || { echo "Missing MainActivity.java"; exit 1; }
+          mkdir -p android/app/src/main/java/com/dnyanada/app
+          cp MainActivity.java android/app/src/main/java/com/dnyanada/app/MainActivity.java
         
                                   
                   
