@@ -32,6 +32,22 @@ jobs:
           cat part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt > www/index.html
           test -s www/index.html || exit 1
           python3 dnyanada_inject_gate.py
+          # Include the optional cloud backup tool in the Android web assets.
+          test -s dnyanada_cloud_backup.js || { echo "Missing dnyanada_cloud_backup.js"; exit 1; }
+          cp dnyanada_cloud_backup.js www/dnyanada_cloud_backup.js
+          python3 - << 'CLOUDEOF'
+          from pathlib import Path
+          p = Path('www/index.html')
+          html = p.read_text(encoding='utf-8')
+          tag = '<script src="dnyanada_cloud_backup.js" defer></script>'
+          if tag not in html:
+              pos = html.lower().rfind('</body>')
+              if pos < 0:
+                  raise SystemExit('Missing closing body tag')
+              html = html[:pos] + tag + '\n' + html[pos:]
+              p.write_text(html, encoding='utf-8')
+          print('Cloud backup script linked in Android app')
+          CLOUDEOF
           npm init -y
           npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
           npx cap init "Dnyanada" "com.dnyanada.app" --web-dir www
