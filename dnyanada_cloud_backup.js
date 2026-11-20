@@ -62,7 +62,7 @@ function addUI(){
   const a=e.target.dataset.action;if(!a)return;
   const status=panel.querySelector('#dny-cloud-status');status.textContent='कृपया थांबा...';
   panel.querySelectorAll('button').forEach(b=>b.disabled=true);
-  try{await (a==='backup'?backup():restore)();status.textContent='पूर्ण';}
+  try{await (a==='backup'?backup():restore());status.textContent='पूर्ण';}
   catch(err){status.textContent='त्रुटी';alert('क्लाउड: '+err.message);}
   finally{panel.querySelectorAll('button').forEach(b=>b.disabled=false);}
  });
