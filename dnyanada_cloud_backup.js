@@ -1,4 +1,4 @@
-(function(){
+;(function(){
 'use strict';
 if(window.__dnyanadaCloudBackupInstalled)return;
 window.__dnyanadaCloudBackupInstalled=true;
