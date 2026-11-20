@@ -27,7 +27,7 @@ async function backup(){
  for(let i=0;i<str.length;i+=CHUNK_CHARS)chunks.push(str.slice(i,i+CHUNK_CHARS));
  const id='b'+Date.now().toString(36);
  const root=db.collection('app_backups').doc(uid);
- for(let i=0;i<chunks.length;i++){
+ for(let i=0;i<chunks.length;i++){alert('बॅकअप तपासणी: भाग '+(i+1)+' / '+chunks.length);
   await root.collection('chunks').doc(id+'_'+String(i).padStart(5,'0')).set({payload:chunks[i],version:id,index:i});
  }
  await root.set({latestVersion:id,chunkCount:chunks.length,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),schema:1});
