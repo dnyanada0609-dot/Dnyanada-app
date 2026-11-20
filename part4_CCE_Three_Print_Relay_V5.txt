@@ -18,7 +18,7 @@ function loadApp(id){
   console.error('Module load failed:',id,error);
   if(id==='cumulativeFrame'){
    f.removeAttribute('srcdoc');
-   f.srcdoc='<!doctype html><html lang="mr"><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px"><h2>संचयी नोंदपत्रक उघडण्यात अडचण आली.</h2><p>मुख्य डॅशबोर्डवर जाऊन पुन्हा प्रयत्न करा.</p></body></html>';
+   f.srcdoc='<!doctype html><html lang="mr"><meta charset="utf-8"><body style="font-family:sans-serif;padding:24px"><h2>संचयी नोंदपत्रक उघडण्यात अडचण आली.</h2><p>मुख्य डॅशबोर्डवर जाऊन पुन्हा प्रयत्न करा.</p><\/body><\/html>';
   }
   delete f.dataset.loaded;
  }
