@@ -14,6 +14,7 @@
   const el = id => document.getElementById(id);
   const status = s => { el('dnyanada-auth-status').textContent = s; };
   const norm = s => String(s == null ? '' : s).trim().toLowerCase();
+  const field = (o,k) => o[k] ?? o[k+' '] ?? '';
   function loadScript(src) { return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(Error('Firebase स्क्रिप्ट लोड झाली नाही. इंटरनेट तपासा.'));document.head.appendChild(s);}); }
   function timeout(p,ms) { return Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(Error('Firebase प्रतिसादासाठी वेळ संपली.')),ms))]); }
   function expiryValid(value) {
@@ -31,15 +32,16 @@
     if (!user) { approvedUid=null; root.classList.add('dnyanada-login-locked'); gate.hidden=false;status('लॉगिन करा.');return; }
     status('शिक्षक खाते आणि सदस्यत्व तपासत आहे...');
     const [t,s]=await timeout(Promise.all([db.collection('teachers').doc(user.uid).get(),db.collection('subscriptions').doc(user.uid).get()]),15000);
-    if (!t.exists || !s.exists) throw Error('शिक्षक किंवा सदस्यत्वाची नोंद नाही.');
+    if (!t.exists) throw Error('शिक्षकाची नोंद नाही. UID=' + user.uid);
+if (!s.exists) throw Error('सदस्यत्वाची नोंद नाही. UID=' + user.uid);
     const td=t.data(),sd=s.data();
-    if (norm(td.status) !== 'active') {
+    if (norm(field(td,'status')) !== 'active') {
   throw Error('शिक्षक खाते सक्रिय नाही. status=' + JSON.stringify(td.status));
 }
-if (norm(sd.status) !== 'active') {
+if (norm(field(sd,'status')) !== 'active') {
   throw Error('सदस्यत्व सक्रिय नाही. status=' + JSON.stringify(sd.status));
 }
-if (!expiryValid(sd.expiryDate)) {
+if (!expiryValid(field(sd,'expiryDate'))) {
   throw Error('सदस्यत्व समाप्ती तारीख अवैध किंवा संपलेली आहे.');
 }
     approvedUid=user.uid;
