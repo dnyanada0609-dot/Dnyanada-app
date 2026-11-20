@@ -33,7 +33,15 @@
     const [t,s]=await timeout(Promise.all([db.collection('teachers').doc(user.uid).get(),db.collection('subscriptions').doc(user.uid).get()]),15000);
     if (!t.exists || !s.exists) throw Error('शिक्षक किंवा सदस्यत्वाची नोंद नाही.');
     const td=t.data(),sd=s.data();
-    if (norm(td.status)!=='active' || norm(sd.status)!=='active' || !expiryValid(sd.expiryDate)) throw Error('खाते किंवा ₹199 सदस्यत्व सक्रिय नाही अथवा मुदत संपली आहे.');
+    if (norm(td.status) !== 'active') {
+  throw Error('शिक्षक खाते सक्रिय नाही. status=' + JSON.stringify(td.status));
+}
+if (norm(sd.status) !== 'active') {
+  throw Error('सदस्यत्व सक्रिय नाही. status=' + JSON.stringify(sd.status));
+}
+if (!expiryValid(sd.expiryDate)) {
+  throw Error('सदस्यत्व समाप्ती तारीख अवैध किंवा संपलेली आहे.');
+}
     approvedUid=user.uid;
     gate.hidden=true;
     root.classList.remove('dnyanada-login-locked');
