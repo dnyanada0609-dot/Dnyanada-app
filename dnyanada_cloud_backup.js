@@ -23,6 +23,7 @@ function collect(){
 }
 async function backup(){
  const {db,uid}=getDb();
+  alert('Firebase UID तपासणी: '+uid);
  const str=collect(),chunks=[];
  for(let i=0;i<str.length;i+=CHUNK_CHARS)chunks.push(str.slice(i,i+CHUNK_CHARS));
  const id='b'+Date.now().toString(36);
