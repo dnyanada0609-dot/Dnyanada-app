@@ -39,7 +39,7 @@ if (!s.exists) throw Error('सदस्यत्वाची नोंद न�
   throw Error('शिक्षक खाते सक्रिय नाही. status=' + JSON.stringify(td.status));
 }
 if (norm(field(sd,'status')) !== 'active') {
-  throw Error('सदस्यत्व सक्रिय नाही. status=' + JSON.stringify(sd.status));
+  throw Error('सदस्यत्व तपासणी: UID=' + user.uid + ', fields=' + Object.keys(sd).join(',') + ', status=' + JSON.stringify(field(sd,'status')));
 }
 if (!expiryValid(field(sd,'expiryDate'))) {
   throw Error('सदस्यत्व समाप्ती तारीख अवैध किंवा संपलेली आहे.');
