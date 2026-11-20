@@ -30,7 +30,7 @@ jobs:
           cat part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt > www/index.html
           python3 dnyanada_inject_gate.py
           cp www/index.html hosting-login/teacher/app/index.html
-          sed -i 's#</body>#<script src="/teacher/app/dnyanada_cloud_backup.js"></script></body>#' hosting-login/teacher/app/index.html
+          
           cp dnyanada_cloud_backup.js hosting-login/teacher/app/dnyanada_cloud_backup.js
 
       - name: Deploy Firebase Hosting
