@@ -4,10 +4,11 @@ if(window.__dnyanadaCloudBackupInstalled)return;
 window.__dnyanadaCloudBackupInstalled=true;
 const MAX_BYTES=20*1024*1024, CHUNK_CHARS=80000;
 function getDb(){
- if(!window.firebase || !firebase.auth || !firebase.firestore) throw Error('Firebase SDK उपलब्ध नाही. लॉगिन झाल्यानंतर प्रयत्न करा.');
- const u=firebase.auth().currentUser;
- if(!u)throw Error('प्रथम शिक्षक लॉगिन करा.');
- return {db:firebase.firestore(),uid:u.uid};
+  const app = firebase.app('dnyanada-login-gate');
+  const auth = app.auth();
+  const u = auth.currentUser;
+  if (!u) throw Error('प्रथम शिक्षक लॉगिन करा.');
+  return {db: app.firestore(), uid: u.uid};
 }
 function collect(){
  const data={};
