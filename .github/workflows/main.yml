@@ -35,11 +35,13 @@ jobs:
           # Include the optional cloud backup tool in the Android web assets.
           test -s dnyanada_cloud_backup.js || { echo "Missing dnyanada_cloud_backup.js"; exit 1; }
           cp dnyanada_cloud_backup.js www/dnyanada_cloud_backup.js
+          cp dnyanada_safe_restore.js www/dnyanada_safe_restore.js
           python3 - << 'CLOUDEOF'
           from pathlib import Path
           p = Path('www/index.html')
           html = p.read_text(encoding='utf-8')
           tag = '<script src="dnyanada_cloud_backup.js" defer></script>'
+          tag += '\n<script src="dnyanada_safe_restore.js" defer></script>'
           if tag not in html:
               pos = html.lower().rfind('</body>')
               if pos < 0:
