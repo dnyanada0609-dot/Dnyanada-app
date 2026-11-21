@@ -27,6 +27,29 @@
     } else d = new Date(value);
     return !isNaN(d.getTime()) && d.getTime() >= Date.now();
   }
+  function addLogoutButton() {
+  if (document.getElementById('dnyanada-logout')) return;
+  const btn = document.createElement('button');
+  btn.id = 'dnyanada-logout';
+  btn.textContent = 'लॉगआउट';
+  btn.style.cssText = 'position:fixed;right:12px;bottom:16px;z-index:2147483000;padding:10px 16px;background:#b42318;color:white;border:0;border-radius:10px;font-size:15px;';
+  btn.onclick = async () => {
+    if (!confirm('लॉगआउट करायचे आहे का?')) return;
+    btn.disabled = true;
+    try {
+      root.classList.add('dnyanada-login-locked');
+      gate.hidden = false;
+      approvedUid = null;
+      await auth.signOut();
+      status('लॉगआउट झाले. पुन्हा लॉगिन करा.');
+    } catch (e) {
+      status('लॉगआउट त्रुटी: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  document.body.appendChild(btn);
+  }
   let auth,db,approvedUid=null;
   async function verify(user) {
     if (!user) { approvedUid=null; root.classList.add('dnyanada-login-locked'); gate.hidden=false;status('लॉगिन करा.');return; }
@@ -35,7 +58,7 @@
     if (!t.exists) throw Error('शिक्षकाची नोंद नाही. UID=' + user.uid);
 if (!s.exists) throw Error('सदस्यत्वाची नोंद नाही. UID=' + user.uid);
     const td=t.data(),sd=s.data();
-    if (norm(field(td,'status')) !== 'active') {
+    if (field(td,'status') && norm(field(td,'status')) !== 'active') {
   throw Error('शिक्षक खाते सक्रिय नाही. status=' + JSON.stringify(td.status));
 }
 if (norm(field(sd,'status')) !== 'active') {
@@ -45,6 +68,7 @@ if (!expiryValid(field(sd,'expiryDate'))) {
   throw Error('सदस्यत्व समाप्ती तारीख अवैध किंवा संपलेली आहे.');
 }
     approvedUid=user.uid;
+    addLogoutButton();
     gate.hidden=true;
     root.classList.remove('dnyanada-login-locked');
   }
