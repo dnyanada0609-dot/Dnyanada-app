@@ -1,0 +1,103 @@
+name: Build Dnyanada Test APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
+
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Assemble test HTML
+        run: |
+          mkdir -p www
+          for n in 1 2 3 4; do
+            test -s "dnyanada_test_part${n}.txt" || exit 1
+          done
+          cat dnyanada_test_part{1,2,3,4}.txt > www/index.html
+          python3 dnyanada_inject_gate.py
+          test -s www/index.html
+
+      - name: Prepare Android
+        run: |
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npx cap init Dnyanada com.dnyanada.app --web-dir www
+          npx cap add android
+
+          cat << 'EOF' >> android/app/build.gradle
+          dependencies {
+            implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))
+          }
+          EOF
+
+          pip install pillow
+          python3 - << 'PY'
+          from PIL import Image
+          from pathlib import Path
+          logo = Path('logo.png')
+          if logo.exists():
+              img = Image.open(logo).convert('RGBA')
+              for folder, size in {
+                  'mipmap-mdpi':48,
+                  'mipmap-hdpi':72,
+                  'mipmap-xhdpi':96,
+                  'mipmap-xxhdpi':144,
+                  'mipmap-xxxhdpi':192
+              }.items():
+                  out = Path('android/app/src/main/res') / folder
+                  out.mkdir(parents=True, exist_ok=True)
+                  resized = img.resize((size,size), Image.Resampling.LANCZOS)
+                  for name in ['ic_launcher.png',
+                               'ic_launcher_round.png',
+                               'ic_launcher_foreground.png']:
+                      resized.save(out / name)
+          PY
+
+          mkdir -p android/app/src/main/java/com/dnyanada/app
+          cp MainActivity.java android/app/src/main/java/com/dnyanada/app/MainActivity.java
+          npx cap sync android
+          chmod +x android/gradlew
+
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DNYANADA_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/dnyanada-release.jks
+
+      - name: Build signed test APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.DNYANADA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DNYANADA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.DNYANADA_KEY_PASSWORD }}
+        run: |
+          cd android
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/dnyanada-release.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dnyanada-Test-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
