@@ -31,8 +31,9 @@ jobs:
             test -s "dnyanada_test_part${n}.txt" || exit 1
           done
           cat dnyanada_test_part{1,2,3,4}.txt > www/index.html
-          python3 dnyanada_inject_gate.py
+          
           test -s www/index.html
+          
 
       - name: Prepare Android
         run: |
