@@ -126,68 +126,158 @@ async function backup(silent=false){
    count+' स्थानिक स्टोरेज नोंदी जतन झाल्या.');
 }
 
-async function restore(){
- const {db,uid}=context();
- const root=db.collection('app_backups').doc(uid);
- const meta=await root.get();
 
- if(!meta.exists)
-  throw Error('या खात्यासाठी क्लाऊड बॅकअप सापडला नाही.');
+async function restore() {
+  const { db, uid } = context();
+  const root = db.collection('app_backups').doc(uid);
 
- const {latestVersion,chunkCount}=meta.data();
+  const meta = await root.get();
 
- if(!latestVersion||
-    !Number.isInteger(chunkCount)||
-    chunkCount<1||
-    chunkCount>1000)
-  throw Error('बॅकअप माहिती अवैध आहे.');
+  if (!meta.exists) {
+    throw Error(
+      'या लॉगिन खात्यासाठी क्लाऊड बॅकअप सापडला नाही.'
+    );
+  }
 
- let str='';
+  const info = meta.data() || {};
+  const version = info.latestVersion;
+  const count = Number(info.chunkCount);
 
- for(let i=0;i<chunkCount;i++){
-  const d=await root.collection('chunks')
-   .doc(latestVersion+'_'+String(i).padStart(5,'0'))
-   .get();
+  if (typeof version !== 'string' || !version.trim()) {
+    throw Error(
+      'Backup Version उपलब्ध नाही. कृपया Firebase तपासा.'
+    );
+  }
 
-  if(!d.exists||
-     typeof d.data().payload!=='string')
-   throw Error('बॅकअप अपूर्ण आहे; स्थानिक डेटा बदललेला नाही.');
+  if (!Number.isSafeInteger(count) ||
+      count < 1 || count > 1000) {
+    throw Error(
+      'Backup Chunk Count चुकीचा आहे: ' +
+      String(info.chunkCount)
+    );
+  }
 
-  str+=d.data().payload;
- }
+  let serialized = '';
 
- const parsed=JSON.parse(str);
+  for (let i = 0; i < count; i++) {
+    const chunkId =
+      version + '_' + String(i).padStart(5, '0');
 
- if(parsed.schema!==1||
-    !parsed.data||
-    typeof parsed.data!=='object'||
-    Array.isArray(parsed.data))
-  throw Error('बॅकअप स्वरूप अवैध आहे.');
+    const chunk = await root
+      .collection('chunks')
+      .doc(chunkId)
+      .get();
 
- const keys=Object.keys(parsed.data);
+    if (!chunk.exists) {
+      throw Error(
+        'Backup चा भाग सापडला नाही: ' + (i + 1)
+      );
+    }
 
- for(const k of keys){
-  if(typeof parsed.data[k]!=='string'||
-     EXCLUDE.test(k))
-   throw Error('अवैध नोंद: '+k);
- }
+    const part = chunk.data();
 
- if(!confirm(
-  'क्लाऊडमधील '+keys.length+
-  ' स्थानिक स्टोरेज नोंदी आणायच्या? समान नावाच्या स्थानिक नोंदी बदलतील. आधी स्वतंत्र बॅकअप घ्या.'
- ))return;
+    if (
+      part.version !== version ||
+      Number(part.index) !== i ||
+      typeof part.payload !== 'string'
+    ) {
+      throw Error(
+        'Backup चा भाग अवैध आहे: ' + (i + 1)
+      );
+    }
 
- for(const k of keys)
-  localStorage.setItem(k,parsed.data[k]);
+    serialized += part.payload;
+  }
 
- localStorage.setItem(marker(uid),snapshot());
- localStorage.setItem(versionMarker(uid),latestVersion);
+  let parsed;
 
- baseline=snapshot();
- pendingSince=0;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch (error) {
+    throw Error(
+      'Backup JSON वाचता आले नाही. डेटा बदललेला नाही.'
+    );
+  }
 
- alert('डेटा पुनर्संचयित झाला. बदल दिसण्यासाठी ॲप पुन्हा उघडा.');
+  if (
+    parsed.schema !== 1 ||
+    !parsed.data ||
+    typeof parsed.data !== 'object' ||
+    Array.isArray(parsed.data)
+  ) {
+    throw Error(
+      'Backup डेटा अपेक्षित स्वरूपात नाही.'
+    );
+  }
+
+  const keys = Object.keys(parsed.data);
+
+  for (const key of keys) {
+    if (
+      typeof parsed.data[key] !== 'string' ||
+      EXCLUDE.test(key)
+    ) {
+      throw Error('अवैध स्टोरेज नोंद: ' + key);
+    }
+  }
+
+  const accepted = confirm(
+    'क्लाऊडमध्ये ' + keys.length +
+    ' नोंदी सापडल्या आहेत.\n\n' +
+    'Restore केल्यास समान नावाच्या स्थानिक नोंदी ' +
+    'बदलल्या जातील.\n\n' +
+    'स्वतंत्र सुरक्षित प्रत असल्यासच पुढे जा.'
+  );
+
+  if (!accepted) return;
+
+  const previous = {};
+
+  for (const key of keys) {
+    previous[key] = localStorage.getItem(key);
+  }
+
+  try {
+    for (const key of keys) {
+      localStorage.setItem(key, parsed.data[key]);
+    }
+  } catch (error) {
+    let rollbackFailed = false;
+
+    for (const key of keys) {
+      try {
+        if (previous[key] === null) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, previous[key]);
+        }
+      } catch (_) {
+        rollbackFailed = true;
+      }
+    }
+
+    throw Error(
+      rollbackFailed
+        ? 'Restore अयशस्वी. काही स्थानिक नोंदी पूर्ववत करता आल्या नाहीत.'
+        : 'Restore अयशस्वी. स्थानिक नोंदी पूर्ववत केल्या.'
+    );
+  }
+
+  localStorage.setItem(marker(uid), snapshot());
+  localStorage.setItem(versionMarker(uid), version);
+
+  baseline = snapshot();
+  pendingSince = 0;
+
+  status('☁ डेटा पुनर्संचयित झाला');
+
+  alert(
+    'Cloud Restore पूर्ण!\n' +
+    keys.length + ' नोंदी पुनर्संचयित झाल्या.\n' +
+    'बदल पाहण्यासाठी ॲप पुन्हा उघडा.'
+  );
 }
+ 
 
 async function autoCheck(){
  if(busy||!navigator.onLine)return;
