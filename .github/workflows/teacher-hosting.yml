@@ -28,6 +28,8 @@ jobs:
 
           python3 dnyanada_inject_gate.py
 
+          
+          sed -i 's@</body>@<script src="/dnyanada_cloud_backup.js"></script></body>@' www/index.html
           cp www/index.html teacher-site/index.html
           cp dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
           cp firebase.teacher.json firebase.json
