@@ -9,7 +9,7 @@
   document.head.appendChild(style);
   const gate = document.createElement('div');
   gate.id = 'dnyanada-login-gate';
-  gate.innerHTML = '<div class="panel"><h2>DNYANADA शिक्षक लॉगिन</h2><p>₹199 वार्षिक सदस्यत्व पडताळणी</p><form id="dnyanada-auth-form"><label>ईमेल<input id="dnyanada-email" type="email" autocomplete="username" required></label><label>पासवर्ड<input id="dnyanada-password" type="password" autocomplete="current-password" required></label><button id="dnyanada-submit" type="submit">लॉगिन करा</button></form><p id="dnyanada-auth-status" role="status">Firebase जोडत आहे...</p></div>';
+  gate.innerHTML = '<div class="panel"><h2>DNYANADA शिक्षक लॉगिन</h2><p>₹333 वार्षिक सदस्यत्व पडताळणी</p><form id="dnyanada-auth-form"><label>ईमेल<input id="dnyanada-email" type="email" autocomplete="username" required></label><label>पासवर्ड<input id="dnyanada-password" type="password" autocomplete="current-password" required></label><button id="dnyanada-submit" type="submit">लॉगिन करा</button></form><p id="dnyanada-auth-status" role="status">Firebase जोडत आहे...</p></div>';
   document.body.appendChild(gate);
   const el = id => document.getElementById(id);
   const status = s => { el('dnyanada-auth-status').textContent = s; };
@@ -28,27 +28,29 @@
     return !isNaN(d.getTime()) && d.getTime() >= Date.now();
   }
   function addLogoutButton() {
-  if (document.getElementById('dnyanada-logout')) return;
-  const btn = document.createElement('button');
-  btn.id = 'dnyanada-logout';
-  btn.textContent = 'लॉगआउट';
-  btn.style.cssText = 'position:fixed;right:12px;bottom:16px;z-index:2147483000;padding:10px 16px;background:#b42318;color:white;border:0;border-radius:10px;font-size:15px;';
-  btn.onclick = async () => {
-    if (!confirm('लॉगआउट करायचे आहे का?')) return;
-    btn.disabled = true;
-    try {
-      root.classList.add('dnyanada-login-locked');
-      gate.hidden = false;
-      approvedUid = null;
-      await auth.signOut();
-      status('लॉगआउट झाले. पुन्हा लॉगिन करा.');
-    } catch (e) {
-      status('लॉगआउट त्रुटी: ' + e.message);
-    } finally {
-      btn.disabled = false;
-    }
-  };
-  document.body.appendChild(btn);
+    if (document.getElementById('dnyanada-logout')) return;
+    const btn = document.createElement('button');
+    btn.id = 'dnyanada-logout';
+    btn.textContent = '⏻';
+    btn.title = 'लॉगआऊट';
+    btn.setAttribute('aria-label', 'लॉगआऊट');
+    btn.style.cssText = 'position:fixed;right:10px;top:10px;bottom:auto;width:36px;height:36px;z-index:2147483000;padding:0;display:flex;align-items:center;justify-content:center;background:#b42318;color:white;border:2px solid white;border-radius:50%;font-size:20px;font-weight:bold;line-height:1;box-shadow:0 2px 8px #0004;cursor:pointer;';
+    btn.onclick = async () => {
+      if (!confirm('लॉगआउट करायचे आहे का?')) return;
+      btn.disabled = true;
+      try {
+        root.classList.add('dnyanada-login-locked');
+        gate.hidden = false;
+        approvedUid = null;
+        await auth.signOut();
+        status('लॉगआउट झाले. पुन्हा लॉगिन करा.');
+      } catch (e) {
+        status('लॉगआउट त्रुटी: ' + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    document.body.appendChild(btn);
   }
   let auth,db,approvedUid=null;
   async function verify(user) {
@@ -56,17 +58,17 @@
     status('शिक्षक खाते आणि सदस्यत्व तपासत आहे...');
     const [t,s]=await timeout(Promise.all([db.collection('teachers').doc(user.uid).get(),db.collection('subscriptions').doc(user.uid).get()]),15000);
     if (!t.exists) throw Error('शिक्षकाची नोंद नाही. UID=' + user.uid);
-if (!s.exists) throw Error('सदस्यत्वाची नोंद नाही. UID=' + user.uid);
+    if (!s.exists) throw Error('सदस्यत्वाची नोंद नाही. UID=' + user.uid);
     const td=t.data(),sd=s.data();
     if (field(td,'status') && norm(field(td,'status')) !== 'active') {
-  throw Error('शिक्षक खाते सक्रिय नाही. status=' + JSON.stringify(td.status));
-}
-if (norm(field(sd,'status')) !== 'active') {
-  throw Error('सदस्यत्व तपासणी: UID=' + user.uid + ', fields=' + Object.keys(sd).join(',') + ', status=' + JSON.stringify(field(sd,'status')));
-}
-if (!expiryValid(field(sd,'expiryDate'))) {
-  throw Error('सदस्यत्व समाप्ती तारीख अवैध किंवा संपलेली आहे.');
-}
+      throw Error('शिक्षक खाते सक्रिय नाही. status=' + JSON.stringify(td.status));
+    }
+    if (norm(field(sd,'status')) !== 'active') {
+      throw Error('सदस्यत्व तपासणी: UID=' + user.uid + ', fields=' + Object.keys(sd).join(',') + ', status=' + JSON.stringify(field(sd,'status')));
+    }
+    if (!expiryValid(field(sd,'expiryDate'))) {
+      throw Error('सदस्यत्व समाप्ती तारीख अवैध किंवा संपलेली आहे.');
+    }
     approvedUid=user.uid;
     addLogoutButton();
     gate.hidden=true;
@@ -89,7 +91,6 @@ if (!expiryValid(field(sd,'expiryDate'))) {
         catch(err){status('लॉगिन अयशस्वी: '+(err.code||'')+' '+err.message);}
         finally{b.disabled=false;}
       });
-      // Recheck access when app returns from background, rather than trusting a past approval indefinitely.
       document.addEventListener('visibilitychange',async()=>{if(!document.hidden && approvedUid && auth.currentUser){root.classList.add('dnyanada-login-locked');gate.hidden=false;try{await verify(auth.currentUser);}catch(e){approvedUid=null;status('पुन्हा पडताळणी अयशस्वी: '+e.message);}}});
     } catch(e){status('सुरुवातीची त्रुटी: '+e.message);}
   })();
