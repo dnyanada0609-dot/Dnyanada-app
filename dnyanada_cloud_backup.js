@@ -2,115 +2,319 @@
 'use strict';
 if(window.__dnyanadaCloudBackupInstalled)return;
 window.__dnyanadaCloudBackupInstalled=true;
-const MAX_BYTES=20*1024*1024, CHUNK_CHARS=80000;
-function getDb(){
-  const app = firebase.app('dnyanada-login-gate');
-  const auth = app.auth();
-  const u = auth.currentUser;
-  if (!u) throw Error('प्रथम शिक्षक लॉगिन करा.');
-  return {db: app.firestore(), uid: u.uid};
+
+const MAX_BYTES=20*1024*1024;
+const CHUNK_CHARS=80000;
+const CHECK_MS=15000;
+const QUIET_MS=20000;
+const EXCLUDE=/^(firebase:|firebase_|__firebase|dnyanada_cloud_)/i;
+
+let baseline=null;
+let pendingSince=0;
+let busy=false;
+let lastUid=null;
+let autoStatus=null;
+
+function context(){
+ if(typeof firebase==='undefined')
+  throw Error('Firebase उपलब्ध नाही.');
+ const app=firebase.app('dnyanada-login-gate');
+ const user=app.auth().currentUser;
+ if(!user)throw Error('प्रथम शिक्षक लॉगिन करा.');
+ return {db:app.firestore(),uid:user.uid};
 }
-function collect(){
+
+function dataObject(){
  const data={};
  for(let i=0;i<localStorage.length;i++){
   const k=localStorage.key(i);
-  if(!k || /^(firebase:|firebase_|__firebase|dnyanada_cloud_)/i.test(k))continue;
-  data[k]=localStorage.getItem(k);
+  if(k&&!EXCLUDE.test(k))
+   data[k]=localStorage.getItem(k);
  }
- const serialized=JSON.stringify({schema:1,createdAt:new Date().toISOString(),data});
- if(new Blob([serialized]).size>MAX_BYTES)throw Error('डेटा 20 MB पेक्षा मोठा आहे.');
- return serialized;
+ return data;
 }
+
+function snapshot(){
+ return JSON.stringify(dataObject());
+}
+
+function marker(uid){
+ return 'dnyanada_cloud_backup_marker_'+uid;
+}
+
+function versionMarker(uid){
+ return 'dnyanada_cloud_backup_version_'+uid;
+}
+
+function status(message){
+ if(autoStatus)autoStatus.textContent=message;
+}
+
+function makePayload(){
+ const data=dataObject();
+ const serialized=JSON.stringify({
+  schema:1,
+  createdAt:new Date().toISOString(),
+  data
+ });
+ if(new Blob([serialized]).size>MAX_BYTES)
+  throw Error('डेटा 20 MB पेक्षा मोठा आहे.');
+ return {
+  serialized,
+  count:Object.keys(data).length,
+  snap:JSON.stringify(data)
+ };
+}
+
 async function backup(silent=false){
- const {db,uid}=getDb();
- const str=collect(),chunks=[];
- for(let i=0;i<str.length;i+=CHUNK_CHARS)chunks.push(str.slice(i,i+CHUNK_CHARS));
- const id='b'+Date.now().toString(36);
+ const {db,uid}=context();
  const root=db.collection('app_backups').doc(uid);
- for(let i=0;i<chunks.length;i++){
-  await root.collection('chunks').doc(id+'_'+String(i).padStart(5,'0')).set({payload:chunks[i],version:id,index:i});
+ const {serialized,count,snap}=makePayload();
+
+ if(silent){
+  const known=localStorage.getItem(versionMarker(uid));
+  if(!known)
+   throw Error('प्रथम एकदा स्वतः बॅकअप घ्या.');
+
+  const remote=await root.get();
+  if(!remote.exists||
+     remote.data().latestVersion!==known)
+   throw Error('क्लाऊडवर दुसरी आवृत्ती आहे. आपोआप बॅकअप थांबवला.');
  }
- await root.set({latestVersion:id,chunkCount:chunks.length,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),schema:1});
- if(!silent)alert('क्लाउड बॅकअप पूर्ण. '+Object.keys(JSON.parse(str).data).length+' स्थानिक नोंदी जतन झाल्या.');
+
+ const chunks=[];
+ for(let i=0;i<serialized.length;i+=CHUNK_CHARS)
+  chunks.push(serialized.slice(i,i+CHUNK_CHARS));
+
+ if(!chunks.length)chunks.push(serialized);
+
+ const id='b'+Date.now().toString(36)+'_'+
+  Math.random().toString(36).slice(2,7);
+
+ for(let i=0;i<chunks.length;i++){
+  await root.collection('chunks')
+   .doc(id+'_'+String(i).padStart(5,'0'))
+   .set({
+    payload:chunks[i],
+    version:id,
+    index:i
+   });
+ }
+
+ await root.set({
+  latestVersion:id,
+  chunkCount:chunks.length,
+  updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+  schema:1
+ });
+
+ const verify=await root.get();
+ if(!verify.exists||
+    verify.data().latestVersion!==id)
+  throw Error('क्लाऊड पुष्टी मिळाली नाही.');
+
+ localStorage.setItem(marker(uid),snap);
+ localStorage.setItem(versionMarker(uid),id);
+ baseline=snap;
+ pendingSince=0;
+
+ status('☁ बॅकअप सुरक्षित झाला');
+
+ if(!silent)
+  alert('क्लाऊड बॅकअप पूर्ण. '+
+   count+' स्थानिक स्टोरेज नोंदी जतन झाल्या.');
 }
+
 async function restore(){
- const {db,uid}=getDb(),root=db.collection('app_backups').doc(uid);
+ const {db,uid}=context();
+ const root=db.collection('app_backups').doc(uid);
  const meta=await root.get();
- if(!meta.exists)throw Error('या खात्यासाठी क्लाउड बॅकअप सापडला नाही.');
+
+ if(!meta.exists)
+  throw Error('या खात्यासाठी क्लाऊड बॅकअप सापडला नाही.');
+
  const {latestVersion,chunkCount}=meta.data();
- if(!latestVersion||!Number.isInteger(chunkCount)||chunkCount<1||chunkCount>1000)throw Error('बॅकअप माहिती अवैध आहे.');
+
+ if(!latestVersion||
+    !Number.isInteger(chunkCount)||
+    chunkCount<1||
+    chunkCount>1000)
+  throw Error('बॅकअप माहिती अवैध आहे.');
+
  let str='';
+
  for(let i=0;i<chunkCount;i++){
-  const d=await root.collection('chunks').doc(latestVersion+'_'+String(i).padStart(5,'0')).get();
-  if(!d.exists||typeof d.data().payload!=='string')throw Error('बॅकअप अपूर्ण आहे; स्थानिक डेटा बदललेला नाही.');
+  const d=await root.collection('chunks')
+   .doc(latestVersion+'_'+String(i).padStart(5,'0'))
+   .get();
+
+  if(!d.exists||
+     typeof d.data().payload!=='string')
+   throw Error('बॅकअप अपूर्ण आहे; स्थानिक डेटा बदललेला नाही.');
+
   str+=d.data().payload;
  }
+
  const parsed=JSON.parse(str);
- if(parsed.schema!==1||!parsed.data||typeof parsed.data!=='object'||Array.isArray(parsed.data))throw Error('बॅकअप स्वरूप अवैध आहे.');
+
+ if(parsed.schema!==1||
+    !parsed.data||
+    typeof parsed.data!=='object'||
+    Array.isArray(parsed.data))
+  throw Error('बॅकअप स्वरूप अवैध आहे.');
+
  const keys=Object.keys(parsed.data);
- if(!confirm('क्लाउडमधील '+keys.length+' नोंदी या मोबाईलवर आणायच्या? एकाच नावाच्या स्थानिक नोंदी बदलतील. आधी स्थानिक बॅकअप घ्या.'))return;
- for(const k of keys){if(typeof parsed.data[k]!=='string')throw Error('अवैध नोंद: '+k);}
- for(const k of keys)localStorage.setItem(k,parsed.data[k]);
- alert('डेटा पुनर्संचयित झाला. बदल दिसण्यासाठी अ‍ॅप पुन्हा उघडा.');
-}
-const CHECK_MS=15000, QUIET_MS=20000;
-let baseline=null,pendingSince=0,busy=false,lastUid=null,lastUploaded=null,autoStatus=null;
-function snapshot(){
- const data={};
- for(let i=0;i<localStorage.length;i++){
-  const k=localStorage.key(i);
-  if(k&&!/^(firebase:|firebase_|__firebase|dnyanada_cloud_)/i.test(k))data[k]=localStorage.getItem(k);
+
+ for(const k of keys){
+  if(typeof parsed.data[k]!=='string'||
+     EXCLUDE.test(k))
+   throw Error('अवैध नोंद: '+k);
  }
- return JSON.stringify(data);
+
+ if(!confirm(
+  'क्लाऊडमधील '+keys.length+
+  ' स्थानिक स्टोरेज नोंदी आणायच्या? समान नावाच्या स्थानिक नोंदी बदलतील. आधी स्वतंत्र बॅकअप घ्या.'
+ ))return;
+
+ for(const k of keys)
+  localStorage.setItem(k,parsed.data[k]);
+
+ localStorage.setItem(marker(uid),snapshot());
+ localStorage.setItem(versionMarker(uid),latestVersion);
+
+ baseline=snapshot();
+ pendingSince=0;
+
+ alert('डेटा पुनर्संचयित झाला. बदल दिसण्यासाठी ॲप पुन्हा उघडा.');
 }
+
 async function autoCheck(){
- if(busy||!navigator.onLine||typeof firebase==='undefined')return;
+ if(busy||!navigator.onLine)return;
+
  let uid;
- try{uid=getDb().uid;}catch(_){return;}
- if(uid!==lastUid){lastUid=uid;baseline=snapshot();pendingSince=0;lastUploaded=null;return;}
- const current=snapshot();
- if(baseline===null){baseline=current;return;}
- if(current===baseline){pendingSince=0;return;}
- if(!pendingSince){pendingSince=Date.now();return;}
- if(Date.now()-pendingSince<QUIET_MS)return;
- if(current===lastUploaded){baseline=current;pendingSince=0;return;}
- busy=true;
  try{
-  if(autoStatus)autoStatus.textContent='☁ आपोआप बॅकअप सुरू...';
+  uid=context().uid;
+ }catch(_){
+  return;
+ }
+
+ const current=snapshot();
+
+ if(uid!==lastUid){
+  lastUid=uid;
+  const saved=localStorage.getItem(marker(uid));
+
+  baseline=saved===null?current:saved;
+  pendingSince=0;
+
+  if(saved===null)
+   status('☁ प्रथम एकदा बॅकअप घ्या');
+  else if(current===saved)
+   status('☁ मागील बॅकअप जतन आहे');
+  else
+   status('☁ बदल आढळले; बॅकअप प्रलंबित');
+
+  return;
+ }
+
+ if(current===baseline){
+  pendingSince=0;
+  return;
+ }
+
+ if(!localStorage.getItem(versionMarker(uid))){
+  status('☁ प्रथम एकदा बॅकअप घ्या');
+  return;
+ }
+
+ if(!pendingSince){
+  pendingSince=Date.now();
+  status('☁ बदल आढळले; बॅकअप प्रलंबित');
+  return;
+ }
+
+ if(Date.now()-pendingSince<QUIET_MS)return;
+
+ busy=true;
+
+ try{
+  status('☁ आपोआप बॅकअप सुरू...');
   await backup(true);
-  lastUploaded=current;baseline=current;pendingSince=0;
-  if(autoStatus)autoStatus.textContent='☁ बॅकअप सुरक्षित झाला';
  }catch(err){
   pendingSince=Date.now();
-  if(autoStatus)autoStatus.textContent='☁ बॅकअप प्रलंबित';
+  status('☁ बॅकअप प्रलंबित: '+err.message);
   console.warn('DNYANADA automatic backup:',err);
- }finally{busy=false;}
+ }finally{
+  busy=false;
+ }
 }
-function startAutoBackup(){
- if(window.__dnyanadaAutoBackupStarted)return;
- window.__dnyanadaAutoBackupStarted=true;
- setInterval(autoCheck,CHECK_MS);
- window.addEventListener('online',autoCheck);
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)autoCheck();});
- autoCheck();
-}
+
 function addUI(){
- if(document.getElementById('dny-cloud-tools'))return;
+ if(document.getElementById('dny-cloud-tools'))
+  return;
+
  const panel=document.createElement('div');
  panel.id='dny-cloud-tools';
- panel.style.cssText='position:fixed;bottom:10px;right:10px;z-index:2147483000;background:white;border:2px solid #135a8a;border-radius:10px;padding:8px;font:13px sans-serif;box-shadow:0 3px 12px #0003';
- panel.innerHTML='<div style="font-weight:bold;margin-bottom:6px">☁ क्लाउड बॅकअप (चाचणी)</div><button type="button" data-action="backup">बॅकअप घ्या</button> <button type="button" data-action="restore">डेटा परत आणा</button><div id="dny-cloud-status" style="font-size:11px;margin-top:4px"></div>';
- panel.addEventListener('click',async e=>{
-  const a=e.target.dataset.action;if(!a)return;
-  const status=panel.querySelector('#dny-cloud-status');status.textContent='कृपया थांबा...';
-  panel.querySelectorAll('button').forEach(b=>b.disabled=true);
-  try{await (a==='backup'?backup():restore());status.textContent='पूर्ण';baseline=snapshot();pendingSince=0;if(a==='backup')lastUploaded=baseline;}
-  catch(err){status.textContent='त्रुटी';alert('क्लाउड: '+err.message);}
-  finally{panel.querySelectorAll('button').forEach(b=>b.disabled=false);}
- });
- document.body.appendChild(panel);
+
+ panel.style.cssText=
+  'position:fixed;bottom:10px;right:10px;'+
+  'z-index:2147483000;background:white;'+
+  'border:2px solid #135a8a;border-radius:10px;'+
+  'padding:8px;font:13px sans-serif;'+
+  'box-shadow:0 3px 12px #0003;max-width:270px';
+
+ panel.innerHTML=
+  '<div style="font-weight:bold;margin-bottom:6px">'+
+  '☁ क्लाऊड बॅकअप (चाचणी)</div>'+
+  '<button type="button" data-action="backup">'+
+  'बॅकअप घ्या</button> '+
+  '<button type="button" data-action="restore">'+
+  'डेटा परत आणा</button>'+
+  '<div id="dny-cloud-status" '+
+  'style="font-size:11px;margin-top:4px"></div>';
+
  autoStatus=panel.querySelector('#dny-cloud-status');
- startAutoBackup();
+
+ panel.addEventListener('click',async e=>{
+  const a=e.target.dataset.action;
+  if(!a)return;
+
+  status('कृपया थांबा...');
+  panel.querySelectorAll('button')
+   .forEach(b=>b.disabled=true);
+
+  busy=true;
+
+  try{
+   if(a==='backup')
+    await backup();
+   else
+    await restore();
+  }catch(err){
+   status('☁ त्रुटी: '+err.message);
+   alert('क्लाऊड: '+err.message);
+  }finally{
+   busy=false;
+   panel.querySelectorAll('button')
+    .forEach(b=>b.disabled=false);
+  }
+ });
+
+ document.body.appendChild(panel);
+
+ setInterval(autoCheck,CHECK_MS);
+ window.addEventListener('online',autoCheck);
+ document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden)autoCheck();
+ });
+
+ autoCheck();
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addUI);else addUI();
+
+if(document.readyState==='loading')
+ document.addEventListener('DOMContentLoaded',addUI);
+else
+ addUI();
+
 })();
+   
