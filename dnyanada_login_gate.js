@@ -11,7 +11,7 @@
     appId: "1:97980812707:web:4eef6c18836d47ba9f9e16"
   };
 
-  const ADMIN_URL = "https://dnyanada-app-17c4a.web.app/";
+  
   const root = document.documentElement;
   root.classList.add("dnyanada-login-locked");
 
@@ -85,11 +85,11 @@
     <div class="panel">
       <h2>DNYANADA Smart Teacher App</h2>
 
-      <label for="dn-role">लॉगिन प्रकार</label>
-      <select id="dn-role">
-        <option value="teacher">शिक्षक</option>
-        <option value="admin">Admin</option>
-      </select>
+      
+      
+        
+      
+      
 
       <div id="dn-teacher">
         <h3>शिक्षक लॉगिन</h3>
@@ -114,13 +114,13 @@
         </button>
       </div>
 
-      <div id="dn-admin" hidden>
-        <h3>Admin व्यवस्थापन</h3>
-        <p>अधिकृत Admin Panel उघडा.</p>
-        <button id="dn-open-admin" type="button">
-          Admin Panel उघडा
-        </button>
-      </div>
+      
+        
+        
+        
+          
+        
+      
 
       <div id="dn-change" hidden>
         <h3>पासवर्ड बदला</h3>
@@ -201,9 +201,9 @@
 
   function showTeacher() {
     changing = false;
-    el("dn-role").value = "teacher";
+    
     el("dn-teacher").hidden = false;
-    el("dn-admin").hidden = true;
+    
     el("dn-change").hidden = true;
   }
 
@@ -213,7 +213,7 @@
 
     changing = true;
     el("dn-teacher").hidden = true;
-    el("dn-admin").hidden = true;
+    
     el("dn-change").hidden = false;
 
     showGate("सध्याचा व नवीन पासवर्ड लिहा.");
@@ -374,26 +374,7 @@
       (e.message || String(e));
   }
 
-  el("dn-role").addEventListener("change", () => {
-    if (changing) return;
-
-    const admin = el("dn-role").value === "admin";
-
-    el("dn-admin").hidden = !admin;
-    el("dn-teacher").hidden = admin;
-
-    status(admin
-      ? "Admin Panel स्वतंत्रपणे उघडेल."
-      : "शिक्षक लॉगिन करा.");
-  });
-
-  el("dn-open-admin").addEventListener("click", () => {
-    const w = window.open(ADMIN_URL, "_blank");
-
-    if (!w) {
-      window.location.href = ADMIN_URL;
-    }
-  });
+  
 
   el("dn-forgot").addEventListener("click", async () => {
     if (!auth) {
