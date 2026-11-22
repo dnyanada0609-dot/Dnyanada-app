@@ -1,3 +1,4 @@
+
 ;(function(){
 'use strict';
 if(window.__dnyanadaCloudBackupInstalled)return;
@@ -250,43 +251,88 @@ async function autoCheck(){
 }
 
 function addUI(){
- if(document.getElementById('dny-cloud-tools'))
-  return;
+ if(document.getElementById('dny-cloud-tools'))return;
 
  const panel=document.createElement('div');
  panel.id='dny-cloud-tools';
-
  panel.style.cssText=
-  'position:fixed;bottom:10px;right:10px;'+
-  'z-index:2147483000;background:white;'+
-  'border:2px solid #135a8a;border-radius:10px;'+
-  'padding:8px;font:13px sans-serif;'+
-  'box-shadow:0 3px 12px #0003;max-width:270px';
+  'position:fixed;left:50%;'+
+  'bottom:calc(8px + env(safe-area-inset-bottom, 0px));'+
+  'transform:translateX(-50%);'+
+  'z-index:2147483000;'+
+  'font:13px system-ui,sans-serif;'+
+  'max-width:calc(100vw - 20px);';
 
- panel.innerHTML=
-  '<div style="font-weight:bold;margin-bottom:6px">'+
-  '☁ क्लाऊड बॅकअप (चाचणी)</div>'+
+ const trigger=document.createElement('button');
+ trigger.type='button';
+ trigger.textContent='☁ क्लाऊड बॅकअप';
+ trigger.setAttribute(
+  'aria-label','क्लाऊड बॅकअप पर्याय उघडा'
+ );
+ trigger.setAttribute('aria-expanded','false');
+
+ trigger.style.cssText=
+  'display:block;margin:auto;'+
+  'background:#125b92;color:white;'+
+  'border:2px solid white;'+
+  'border-radius:999px;padding:9px 18px;'+
+  'font:700 14px system-ui,sans-serif;'+
+  'box-shadow:0 3px 12px #0005;'+
+  'white-space:nowrap;cursor:pointer;';
+
+ const popup=document.createElement('div');
+ popup.hidden=true;
+ popup.style.cssText=
+  'position:absolute;bottom:calc(100% + 9px);'+
+  'left:50%;transform:translateX(-50%);'+
+  'width:270px;max-width:calc(100vw - 24px);'+
+  'background:white;color:#173e68;'+
+  'border:2px solid #125b92;'+
+  'border-radius:12px;padding:12px;'+
+  'box-shadow:0 5px 22px #0004;'+
+  'text-align:center;';
+
+ popup.innerHTML=
+  '<div style="font-weight:800;margin-bottom:8px">'+
+  '☁ क्लाऊड बॅकअप</div>'+
   '<button type="button" data-action="backup">'+
   'बॅकअप घ्या</button> '+
   '<button type="button" data-action="restore">'+
   'डेटा परत आणा</button>'+
-  '<div id="dny-cloud-status" '+
-  'style="font-size:11px;margin-top:4px"></div>';
+  '<div id="dny-cloud-status" role="status" '+
+  'style="font-size:12px;line-height:1.4;'+
+  'margin-top:9px;overflow-wrap:anywhere">'+
+  'स्थिती तपासत आहे...</div>';
 
- autoStatus=panel.querySelector('#dny-cloud-status');
+ popup.querySelectorAll('button').forEach(btn=>{
+  btn.style.cssText=
+   'background:#e5f2ff;color:#124879;'+
+   'border:1px solid #9cc6e9;'+
+   'border-radius:8px;padding:8px 7px;'+
+   'font-weight:700;cursor:pointer;';
+ });
 
- panel.addEventListener('click',async e=>{
-  const a=e.target.dataset.action;
-  if(!a)return;
+ autoStatus=popup.querySelector('#dny-cloud-status');
+
+ trigger.addEventListener('click',()=>{
+  popup.hidden=!popup.hidden;
+  trigger.setAttribute(
+   'aria-expanded',String(!popup.hidden)
+  );
+ });
+
+ popup.addEventListener('click',async e=>{
+  const action=e.target.dataset.action;
+  if(!action)return;
+  if(busy)return;
 
   status('कृपया थांबा...');
-  panel.querySelectorAll('button')
-   .forEach(b=>b.disabled=true);
-
+  popup.querySelectorAll('button')
+   .forEach(btn=>btn.disabled=true);
   busy=true;
 
   try{
-   if(a==='backup')
+   if(action==='backup')
     await backup();
    else
     await restore();
@@ -295,11 +341,13 @@ function addUI(){
    alert('क्लाऊड: '+err.message);
   }finally{
    busy=false;
-   panel.querySelectorAll('button')
-    .forEach(b=>b.disabled=false);
+   popup.querySelectorAll('button')
+    .forEach(btn=>btn.disabled=false);
   }
  });
 
+ panel.appendChild(popup);
+ panel.appendChild(trigger);
  document.body.appendChild(panel);
 
  setInterval(autoCheck,CHECK_MS);
@@ -317,4 +365,4 @@ else
  addUI();
 
 })();
-   
+     
