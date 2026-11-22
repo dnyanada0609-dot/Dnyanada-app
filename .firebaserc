@@ -1,0 +1,15 @@
+
+{
+  "projects": {
+    "default": "dnyanada-app-17c4a"
+  },
+  "targets": {
+    "dnyanada-app-17c4a": {
+      "hosting": {
+        "admin": [
+          "dnyanada-app-17c4a"
+        ]
+      }
+    }
+  }
+}
