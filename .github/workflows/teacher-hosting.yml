@@ -1,0 +1,31 @@
+
+name: Deploy DNYANADA Teacher Website
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare teacher website
+        run: |
+          mkdir -p teacher-site
+          cp DNYANADA_Teacher_Login_Only_V3.html teacher-site/index.html
+
+      - name: Deploy teacher website
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DNYANADA }}
+          projectId: dnyanada-app-17c4a
+          channelId: live
+          target: teacher
+          
