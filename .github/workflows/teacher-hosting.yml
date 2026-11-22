@@ -1,4 +1,3 @@
-
 name: Deploy DNYANADA Teacher Website
 
 on:
@@ -18,22 +17,20 @@ jobs:
       - name: Prepare teacher website
         run: |
           set -e
-          mkdir -p teacher-site
+          mkdir -p www teacher-site
 
           cat \
             part1_CCE_Three_Print_Relay_V5.txt \
             part2_CCE_Three_Print_Relay_V5.txt \
             part3_CCE_Three_Print_Relay_V5.txt \
             part4_CCE_Three_Print_Relay_V5.txt \
-            > teacher-site/index.html
+            > www/index.html
 
-          python3 dnyanada_inject_gate.py \
-            teacher-site/index.html
+          python3 dnyanada_inject_gate.py
 
-          cp dnyanada_cloud_backup.js \
-            teacher-site/dnyanada_cloud_backup.js
-
-          cp firebase.teacher.json firebase.json
+          cp www/index.html teacher-site/index.html
+          cp dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
+          cp firebase.teacher.json teacher-site/firebase.json
 
       - name: Deploy teacher website
         uses: FirebaseExtended/action-hosting-deploy@v0
