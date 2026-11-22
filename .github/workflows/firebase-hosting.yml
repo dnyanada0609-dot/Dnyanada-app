@@ -17,7 +17,7 @@ jobs:
         run: |
           set -e
           mkdir -p hosting-login/teacher/app
-          cp DNYANADA_Admin_Panel_V5_Status_Fix.html hosting-login/index.html
+          cp DNYANADA_Admin_Panel_V7_Teacher_Registration.html hosting-login/index.html
           cp DNYANADA_Teacher_Login_Only_V3.html hosting-login/teacher/index.html
 
       - name: Assemble main app and inject login gate
