@@ -21,18 +21,17 @@ function collect(){
  if(new Blob([serialized]).size>MAX_BYTES)throw Error('डेटा 20 MB पेक्षा मोठा आहे.');
  return serialized;
 }
-async function backup(){
+async function backup(silent=false){
  const {db,uid}=getDb();
-  alert('Firebase UID तपासणी: '+uid);
  const str=collect(),chunks=[];
  for(let i=0;i<str.length;i+=CHUNK_CHARS)chunks.push(str.slice(i,i+CHUNK_CHARS));
  const id='b'+Date.now().toString(36);
  const root=db.collection('app_backups').doc(uid);
- for(let i=0;i<chunks.length;i++){alert('बॅकअप तपासणी: भाग '+(i+1)+' / '+chunks.length);
+ for(let i=0;i<chunks.length;i++){
   await root.collection('chunks').doc(id+'_'+String(i).padStart(5,'0')).set({payload:chunks[i],version:id,index:i});
  }
  await root.set({latestVersion:id,chunkCount:chunks.length,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),schema:1});
- alert('क्लाउड बॅकअप पूर्ण. '+Object.keys(JSON.parse(str).data).length+' स्थानिक नोंदी जतन झाल्या.');
+ if(!silent)alert('क्लाउड बॅकअप पूर्ण. '+Object.keys(JSON.parse(str).data).length+' स्थानिक नोंदी जतन झाल्या.');
 }
 async function restore(){
  const {db,uid}=getDb(),root=db.collection('app_backups').doc(uid);
@@ -54,6 +53,47 @@ async function restore(){
  for(const k of keys)localStorage.setItem(k,parsed.data[k]);
  alert('डेटा पुनर्संचयित झाला. बदल दिसण्यासाठी अ‍ॅप पुन्हा उघडा.');
 }
+const CHECK_MS=15000, QUIET_MS=20000;
+let baseline=null,pendingSince=0,busy=false,lastUid=null,lastUploaded=null,autoStatus=null;
+function snapshot(){
+ const data={};
+ for(let i=0;i<localStorage.length;i++){
+  const k=localStorage.key(i);
+  if(k&&!/^(firebase:|firebase_|__firebase|dnyanada_cloud_)/i.test(k))data[k]=localStorage.getItem(k);
+ }
+ return JSON.stringify(data);
+}
+async function autoCheck(){
+ if(busy||!navigator.onLine||typeof firebase==='undefined')return;
+ let uid;
+ try{uid=getDb().uid;}catch(_){return;}
+ if(uid!==lastUid){lastUid=uid;baseline=snapshot();pendingSince=0;lastUploaded=null;return;}
+ const current=snapshot();
+ if(baseline===null){baseline=current;return;}
+ if(current===baseline){pendingSince=0;return;}
+ if(!pendingSince){pendingSince=Date.now();return;}
+ if(Date.now()-pendingSince<QUIET_MS)return;
+ if(current===lastUploaded){baseline=current;pendingSince=0;return;}
+ busy=true;
+ try{
+  if(autoStatus)autoStatus.textContent='☁ आपोआप बॅकअप सुरू...';
+  await backup(true);
+  lastUploaded=current;baseline=current;pendingSince=0;
+  if(autoStatus)autoStatus.textContent='☁ बॅकअप सुरक्षित झाला';
+ }catch(err){
+  pendingSince=Date.now();
+  if(autoStatus)autoStatus.textContent='☁ बॅकअप प्रलंबित';
+  console.warn('DNYANADA automatic backup:',err);
+ }finally{busy=false;}
+}
+function startAutoBackup(){
+ if(window.__dnyanadaAutoBackupStarted)return;
+ window.__dnyanadaAutoBackupStarted=true;
+ setInterval(autoCheck,CHECK_MS);
+ window.addEventListener('online',autoCheck);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)autoCheck();});
+ autoCheck();
+}
 function addUI(){
  if(document.getElementById('dny-cloud-tools'))return;
  const panel=document.createElement('div');
@@ -64,11 +104,13 @@ function addUI(){
   const a=e.target.dataset.action;if(!a)return;
   const status=panel.querySelector('#dny-cloud-status');status.textContent='कृपया थांबा...';
   panel.querySelectorAll('button').forEach(b=>b.disabled=true);
-  try{await (a==='backup'?backup():restore());status.textContent='पूर्ण';}
+  try{await (a==='backup'?backup():restore());status.textContent='पूर्ण';baseline=snapshot();pendingSince=0;if(a==='backup')lastUploaded=baseline;}
   catch(err){status.textContent='त्रुटी';alert('क्लाउड: '+err.message);}
   finally{panel.querySelectorAll('button').forEach(b=>b.disabled=false);}
  });
  document.body.appendChild(panel);
+ autoStatus=panel.querySelector('#dny-cloud-status');
+ startAutoBackup();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addUI);else addUI();
 })();
