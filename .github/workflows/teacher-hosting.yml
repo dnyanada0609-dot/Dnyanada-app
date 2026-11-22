@@ -30,7 +30,7 @@ jobs:
 
           cp www/index.html teacher-site/index.html
           cp dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
-          cp firebase.teacher.json teacher-site/firebase.json
+          cp firebase.teacher.json firebase.json
 
       - name: Deploy teacher website
         uses: FirebaseExtended/action-hosting-deploy@v0
