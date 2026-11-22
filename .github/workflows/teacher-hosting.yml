@@ -17,8 +17,22 @@ jobs:
 
       - name: Prepare teacher website
         run: |
+          set -e
           mkdir -p teacher-site
-          cp DNYANADA_Teacher_Login_Only_V3.html teacher-site/index.html
+
+          cat \
+            part1_CCE_Three_Print_Relay_V5.txt \
+            part2_CCE_Three_Print_Relay_V5.txt \
+            part3_CCE_Three_Print_Relay_V5.txt \
+            part4_CCE_Three_Print_Relay_V5.txt \
+            > teacher-site/index.html
+
+          python3 dnyanada_inject_gate.py \
+            teacher-site/index.html
+
+          cp dnyanada_cloud_backup.js \
+            teacher-site/dnyanada_cloud_backup.js
+
           cp firebase.teacher.json firebase.json
 
       - name: Deploy teacher website
