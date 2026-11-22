@@ -1,0 +1,12 @@
+
+{
+  "hosting": {
+    "site": "dnyanada-app-1df67",
+    "public": "teacher-site",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}
