@@ -9,29 +9,42 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare teacher website
+      - name: Prepare and validate teacher website
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p www teacher-site
-
           cat \
-          part1_CCE_Marks_Web_Print_Fix.txt \
-          part2_CCE_Marks_Web_Print_Fix.txt \
-          part3_CCE_Marks_Web_Print_Fix.txt \
-          part4_CCE_Marks_Web_Print_Fix.txt \
-          > www/index.html
+            part1_CCE_Marks_Web_Print_Fix.txt \
+            part2_CCE_Marks_Web_Print_Fix.txt \
+            part3_CCE_Marks_Web_Print_Fix.txt \
+            part4_CCE_Marks_Web_Print_Fix.txt \
+            > www/index.html
 
           python3 dnyanada_inject_gate.py
 
-          
-          
-          python3 -c 'from pathlib import Path; p=Path("www/index.html"); s=p.read_text(encoding="utf-8"); i=s.lower().rfind("</body>"); assert i >= 0, "Closing body tag missing"; s=s[:i]+"<script src=\"/dnyanada_cloud_backup.js\"></script>"+s[i:]; p.write_text(s, encoding="utf-8")'
-      
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('www/index.html')
+          s = p.read_text(encoding='utf-8')
+          closing = '</body>'
+          pos = s.lower().rfind(closing)
+          if pos < 0:
+              raise SystemExit('STOP: HTML closing body tag missing')
+          tag = '<script src="/dnyanada_cloud_backup.js"></script>\n'
+          if tag not in s:
+              s = s[:pos] + tag + s[pos:]
+          p.write_text(s, encoding='utf-8')
+          if not s.lstrip().lower().startswith('<!doctype html>'):
+              raise SystemExit('STOP: HTML document header missing')
+          if s.lower().count('</body>') < 1 or not s.rstrip().lower().endswith('</html>'):
+              raise SystemExit('STOP: HTML document ending invalid')
+          print('Teacher HTML assembled and guarded injection completed')
+          PY
+
           cp www/index.html teacher-site/index.html
           cp dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
           cp firebase.teacher.json firebase.json
@@ -44,5 +57,3 @@ jobs:
           projectId: dnyanada-app-17c4a
           channelId: live
           entryPoint: .
-          
-
