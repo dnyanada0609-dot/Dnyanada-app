@@ -26,10 +26,10 @@ jobs:
       - name: Join HTML Parts and Prepare Android
         run: |
           mkdir -p www
-          for part in part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt; do
+          for part in part1_CCE_Two_Fixes.txt part2_CCE_Two_Fixes.txt part3_CCE_Two_Fixes.txt part4_CCE_Two_Fixes.txt; do
             test -s "$part" || { echo "Missing or empty: $part"; exit 1; }
           done
-          cat part1_CCE_Three_Print_Relay_V5.txt part2_CCE_Three_Print_Relay_V5.txt part3_CCE_Three_Print_Relay_V5.txt part4_CCE_Three_Print_Relay_V5.txt > www/index.html
+          cat part1_CCE_Two_Fixes.txt part2_CCE_Two_Fixes.txt part3_CCE_Two_Fixes.txt part4_CCE_Two_Fixes.txt > www/index.html
           test -s www/index.html || exit 1
           python3 dnyanada_repair.py
           python3 dnyanada_account_notes_fix.py
