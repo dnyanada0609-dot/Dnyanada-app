@@ -21,8 +21,14 @@ if old in chunk: chunk=chunk.replace(old,new,1)
 elif new not in chunk: raise SystemExit('ERROR: unknown progress reader storage format')
 oldlist="const list=all[`${roll}_${t}`]||all[String(roll)+(t===2?'_2':'')]||[];"
 newlist="const list=all[dnyNotesRecordKey(roll,t)]||[];"
-if oldlist in chunk: chunk=chunk.replace(oldlist,newlist,1)
-elif newlist not in chunk: raise SystemExit('ERROR: unknown progress reader student key')
+if oldlist in chunk:
+ chunk=chunk.replace(oldlist,newlist,1)
+else:
+ alternative="const list=all[String(roll)+'_'+t]||(t===1?all[String(roll)]:null)||[];"
+ if alternative in chunk:
+  chunk=chunk.replace(alternative,newlist,1)
+ elif newlist not in chunk:
+  raise SystemExit('ERROR: unknown progress reader student key')
 h=h[:a]+chunk+h[b:]
 # Keep both local progress card notices in sync after reload and on every edit.
 needle="set('progressNoticeText_2',notice);"
@@ -31,7 +37,7 @@ h=h.replace(needle,needle+" /* DNY_PROGRESS_SYNC_FIX_20261123 */",1)
 # The separate progress iframe's existing bridge also receives the notice in its values.
 needle="values.location=[value('setupTaluka'),value('setupDistrict')].filter(Boolean).join(' / ');"
 if h.count(needle)!=1: raise SystemExit('ERROR: progress iframe bridge not found uniquely')
-h=h.replace(needle,needle+"\n  values.notice=value('setupNotice');",1)
+h=h.replace(needle,needle+"\n values.notice=value('setupNotice');",1)
 needle="'location','p1','h1','i1','p2','h2','i2'"
 if h.count(needle)!=1: raise SystemExit('ERROR: progress bridge field list changed')
 h=h.replace(needle,"'location','notice','p1','h1','i1','p2','h2','i2'",1)
