@@ -34,6 +34,7 @@ jobs:
           python3 dnyanada_repair.py
           python3 dnyanada_account_notes_fix.py
           python3 dnyanada_cce_progress_sync_fix.py
+          python3 dnyanada_cce_notes_unify_fix.py
           python3 dnyanada_inject_gate.py
           python3 dnyanada_final_auth_relay_fix.py
           # Include the optional cloud backup tool in the Android web assets.
