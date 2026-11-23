@@ -29,7 +29,9 @@ jobs:
           python3 dnyanada_inject_gate.py
 
           
-          sed -i 's@</body>@<script src="/dnyanada_cloud_backup.js"></script></body>@' www/index.html
+          
+          python3 -c 'from pathlib import Path; p=Path("www/index.html"); s=p.read_text(encoding="utf-8"); i=s.lower().rfind("</body>"); assert i >= 0, "Closing body tag missing"; s=s[:i]+"<script src=\"/dnyanada_cloud_backup.js\"></script>"+s[i:]; p.write_text(s, encoding="utf-8")'
+      
           cp www/index.html teacher-site/index.html
           cp dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
           cp firebase.teacher.json firebase.json
@@ -43,3 +45,4 @@ jobs:
           channelId: live
           entryPoint: .
           
+.
