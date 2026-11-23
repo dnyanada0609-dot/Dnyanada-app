@@ -20,12 +20,11 @@ jobs:
           mkdir -p www teacher-site
 
           cat \
-       part1_CCE_Marks_Web_Print_Fix.txt \
-        part2_CCE_Marks_Web_Print_Fix.txt \
-        part3_CCE_Marks_Web_Print_Fix.txt \
-        part4_CCE_Marks_Web_Print_Fix.txt \
-        
-            > www/index.html
+          part1_CCE_Marks_Web_Print_Fix.txt \
+          part2_CCE_Marks_Web_Print_Fix.txt \
+          part3_CCE_Marks_Web_Print_Fix.txt \
+          part4_CCE_Marks_Web_Print_Fix.txt \
+          > www/index.html
 
           python3 dnyanada_inject_gate.py
 
