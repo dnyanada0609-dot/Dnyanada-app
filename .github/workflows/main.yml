@@ -33,7 +33,7 @@ jobs:
           test -s www/index.html || exit 1
           python3 dnyanada_repair.py
           python3 dnyanada_account_notes_fix.py
-          python3 dnyanada_inject_gate.py
+          grep -q 'id="dnyanada-login-gate"' www/index.html || python3 dnyanada_inject_gate.py
           # Include the optional cloud backup tool in the Android web assets.
           test -s dnyanada_cloud_backup.js || { echo "Missing dnyanada_cloud_backup.js"; exit 1; }
           cp dnyanada_cloud_backup.js www/dnyanada_cloud_backup.js
