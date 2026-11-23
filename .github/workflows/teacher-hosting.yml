@@ -26,6 +26,7 @@ jobs:
 
           python3 dnyanada_inject_gate.py
           python3 dnyanada_sanchayi_11page_print_fix.py
+          python3 dnyanada_sanchayi_print_v2.py
           python3 - <<'PY'
           from pathlib import Path
           p = Path('www/index.html')
