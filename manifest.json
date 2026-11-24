@@ -1,0 +1,14 @@
+
+{
+  "id": "/",
+  "name": "DNYANADA Smart Teacher App",
+  "short_name": "DNYANADA",
+  "description": "डिजिटल शाळा व्यवस्थापन प्रणाली",
+  "lang": "mr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#125b92"
+}
