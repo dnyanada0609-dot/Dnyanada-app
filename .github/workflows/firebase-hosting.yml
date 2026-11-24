@@ -17,6 +17,7 @@ jobs:
         run: |
           set -e
           mkdir -p hosting-login/teacher/app
+          python3 dnyanada_admin_dashboard_fix.py
           cp DNYANADA_Admin_Panel_Consolidated.html hosting-login/index.html
           cp DNYANADA_Teacher_Login_Only_V3.html hosting-login/teacher/index.html
 
