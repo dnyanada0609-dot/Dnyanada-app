@@ -25,10 +25,10 @@ jobs:
             > www/index.html
 
           python3 dnyanada_login_cloud_fix.py
-          
           python3 dnyanada_inject_gate.py
           python3 dnyanada_sanchayi_11page_print_fix.py
           python3 dnyanada_sanchayi_print_v2.py
+
           python3 - <<'PY'
           from pathlib import Path
           p = Path('www/index.html')
@@ -51,9 +51,10 @@ jobs:
           cp www/index.html teacher-site/index.html
           cp dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
           cp firebase.teacher.json firebase.json
-          
+
           cp manifest.json teacher-site/manifest.json
           python3 -m pip install Pillow
+
           python3 - <<'PY'
           from PIL import Image
           from pathlib import Path
@@ -71,7 +72,27 @@ jobs:
           p.write_text(s, encoding="utf-8")
           print("PWA setup completed")
           PY
-          
+
+      - name: Verify teacher hosting files
+        run: |
+          set -euo pipefail
+          test -s teacher-site/index.html
+          test -s teacher-site/dnyanada_cloud_backup.js
+          test -s teacher-site/manifest.json
+          ls -lh teacher-site/
+          cat firebase.json
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path("firebase.json").read_text())
+          hosting = config["hosting"]
+          assert hosting["site"] == "dnyanada-app-1df67", "Wrong hosting site"
+          assert hosting["public"] == "teacher-site", "Wrong public directory"
+          assert Path("teacher-site/index.html").stat().st_size > 0
+          print("Teacher hosting files verified successfully")
+          PY
+
       - name: Deploy teacher website
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -80,3 +101,24 @@ jobs:
           projectId: dnyanada-app-17c4a
           channelId: live
           entryPoint: .
+
+      - name: Verify live teacher website
+        run: |
+          set -euo pipefail
+          for url in \
+            https://dnyanada-app-1df67.web.app/ \
+            https://dnyanada-app-1df67.firebaseapp.com/
+          do
+            echo "Checking $url"
+            curl --fail --silent --show-error \
+              --location --retry 5 --retry-all-errors \
+              --retry-delay 10 --max-time 120 \
+              "$url" -o /tmp/teacher-live.html
+            test -s /tmp/teacher-live.html
+            if grep -qi '<title>Page Not Found</title>' /tmp/teacher-live.html; then
+              echo "ERROR: Firebase Page Not Found"
+              exit 1
+            fi
+            echo "Website HTTP check successful: $url"
+          done
+          
