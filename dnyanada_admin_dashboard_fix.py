@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 p = Path("DNYANADA_Admin_Panel_Consolidated.html")
 s = p.read_text(encoding="utf-8")
@@ -6,7 +7,7 @@ s = p.read_text(encoding="utf-8")
 def replace(old, new):
     global s
     if s.count(old) != 1:
-        raise SystemExit("STOP: Expected code not found uniquely")
+        raise SystemExit("STOP: Code mismatch: " + old[:80])
     s = s.replace(old, new, 1)
 
 # 1. Dashboard design
@@ -19,7 +20,7 @@ replace("</style>", """
  margin:16px 0;
 }
 .stat-card{
- padding:16px 8px;
+ padding:18px 8px;
  border-radius:12px;
  text-align:center;
  border:1px solid #ccd8e5;
@@ -27,7 +28,7 @@ replace("</style>", """
 }
 .stat-card strong{
  display:block;
- font-size:30px;
+ font-size:32px;
  margin-bottom:6px;
 }
 .stat-total{background:#e8f0fc;color:#245bb0}
@@ -39,8 +40,8 @@ replace("</style>", """
 # 2. Dashboard cards
 
 replace(
-    "<h2>शिक्षक खाते व्यवस्थापन</h2>",
-    """<h2>शिक्षक खाते व्यवस्थापन</h2>
+ "<h2>शिक्षक खाते व्यवस्थापन</h2>",
+ """<h2>शिक्षक खाते व्यवस्थापन</h2>
 <div class="stats-grid">
  <div class="stat-card stat-total">
   <strong id="countTotal">—</strong>
@@ -66,19 +67,60 @@ replace(
 """
 )
 
-# 3. Read dashboard counts
+# 3. Remove demo section
+
+s, n = re.subn(
+ r'<div class="editor"><h2>जुन्या डेमो नोंदी बंद करा</h2>.*?</div>',
+ '',
+ s,
+ count=1,
+ flags=re.S
+)
+if n != 1:
+    raise SystemExit("STOP: Demo section not found")
+
+# 4. Remove demo checkbox
+
+s, n = re.subn(
+ r"const choose=mk\('input'\);.*?card\.append\(chooseLabel\);",
+ "",
+ s,
+ count=1,
+ flags=re.S
+)
+if n != 1:
+    raise SystemExit("STOP: Demo checkbox not found")
+
+# 5. Remove old demo function
+
+s, n = re.subn(
+ r"async function disableSelected\(\)\{.*?(?=async function setTeacher)",
+ "",
+ s,
+ count=1,
+ flags=re.S
+)
+if n != 1:
+    raise SystemExit("STOP: Demo function not found")
 
 replace(
-    "async function loadTeachers(){",
-    """
-let statsVersion = 0;
+ "$('disableSelected').onclick=disableSelected;",
+ ""
+)
+
+# 6. Dashboard counts
+
+replace(
+ "async function loadTeachers(){",
+ """
+let statsVersion=0;
 
 async function loadStats(){
  if(!authorized || !auth.currentUser)return;
 
- const version = ++statsVersion;
- const uid = auth.currentUser.uid;
- const ids = [
+ const version=++statsVersion;
+ const uid=auth.currentUser.uid;
+ const ids=[
   'countTotal','countActive',
   'countInactive','countExpired'
  ];
@@ -90,30 +132,45 @@ async function loadStats(){
  try{
   const now=firebase.firestore.Timestamp.now();
 
-  const [total,active,inactive,expired] =
-   await Promise.all([
-    db.collection('teachers').get(),
-    db.collection('teachers')
-      .where('status','==','active').get(),
-    db.collection('teachers')
-      .where('status','==','inactive').get(),
-    db.collection('subscriptions')
-      .where('expiryDate','<',now).get()
-   ]);
+  const [teachers,expiredSubs]=await Promise.all([
+   db.collection('teachers').get({source:'server'}),
+   db.collection('subscriptions')
+    .where('expiryDate','<',now)
+    .get({source:'server'})
+  ]);
 
-  if(version!==statsVersion || !authorized ||
+  if(version!==statsVersion ||
+     !authorized ||
      auth.currentUser?.uid!==uid)return;
 
-  $('countTotal').textContent=total.size;
-$('countActive').textContent=active.size;
-$('countInactive').textContent=inactive.size;
-$('countExpired').textContent=expired.size;
-  
-  
-  
+  const expiredIds=new Set(
+   expiredSubs.docs.map(d=>d.id)
+  );
+
+  let total=0,active=0,inactive=0,expired=0;
+
+  teachers.forEach(doc=>{
+   if(doc.id===uid)return;
+
+   total++;
+   const status=String(
+    doc.data().status||''
+   ).trim().toLowerCase();
+
+   if(status==='active')active++;
+   else inactive++;
+
+   if(expiredIds.has(doc.id))expired++;
+  });
+
+  $('countTotal').textContent=total;
+  $('countActive').textContent=active;
+  $('countInactive').textContent=inactive;
+  $('countExpired').textContent=expired;
+
   $('statsInfo').textContent=
-   'सक्रिय व निष्क्रिय संख्या खाते स्थितीनुसार आहे. '+
-   'मुदत संपलेली संख्या सदस्यत्व नोंदींनुसार आहे.';
+   'खाते स्थितीनुसार सक्रिय व निष्क्रिय संख्या. '+
+   'मुदत संपलेले शिक्षक स्वतंत्रपणे मोजले आहेत.';
 
  }catch(e){
   if(version===statsVersion){
@@ -127,25 +184,20 @@ $('countExpired').textContent=expired.size;
  }
 }
 
-async function loadTeachers(){"""
+async function loadTeachers(){
+ if(authorized)loadStats();
+"""
 )
 
-# 4. Connect refresh button
+# 7. Connect dashboard refresh
 
 replace(
-    "$('saveFee').onclick=saveFee;",
-    """$('saveFee').onclick=saveFee;
-$('refreshStats').onclick=loadStats;"""
+ "$('saveFee').onclick=saveFee;",
+ """$('saveFee').onclick=saveFee;
+ $('refreshStats').onclick=loadStats;"""
 )
 
-# 5. Load counts after admin login
-
-replace(
-    "await loadFee();await loadTeachers();",
-    "await loadFee();await loadTeachers();await loadStats();"
-)
-
-# 6. Annual fee default
+# 8. Annual fee default
 
 replace('value="199"', 'value="222"')
 replace('annualFee=199', 'annualFee=222')
@@ -153,6 +205,31 @@ replace('raw.price??199', 'raw.price??222')
 replace('v>0?v:199', 'v>0?v:222')
 replace('₹199 हे केवळ', '₹222 हे केवळ')
 
-p.write_text(s, encoding="utf-8")
+# 9. First password change flag
 
-print("SUCCESS: Admin dashboard updated")
+old = "status:'inactive',createdAt:"
+new = "status:'inactive',mustChangePassword:true,createdAt:"
+
+if old in s:
+    replace(old,new)
+elif s.count(new)!=1:
+    raise SystemExit("STOP: Password flag check failed")
+
+# 10. Correct title
+
+s=s.replace(
+ "DNYANADA DNYANADA Admin Panel",
+ "DNYANADA Admin Panel"
+)
+
+# 11. Final validation
+
+if "disableSelected" in s or "demo-select" in s:
+    raise SystemExit("STOP: Old demo code remains")
+
+if 'id="countTotal"' not in s:
+    raise SystemExit("STOP: Dashboard missing")
+
+p.write_text(s,encoding="utf-8")
+
+print("SUCCESS: DNYANADA Admin Dashboard updated")
