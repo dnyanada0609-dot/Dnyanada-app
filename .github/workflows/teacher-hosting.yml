@@ -24,6 +24,7 @@ jobs:
             part4_CCE_Marks_Web_Print_Fix.txt \
             > www/index.html
 
+          python3 dnyanada_login_cloud_fix.py
           python3 dnyanada_inject_gate.py
           python3 dnyanada_sanchayi_11page_print_fix.py
           python3 dnyanada_sanchayi_print_v2.py
