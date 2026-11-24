@@ -39,6 +39,6 @@ jobs:
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DNYANADA }}
-          channelId: live
+          channelId: admin-preview
           projectId: dnyanada-app-17c4a
           entryPoint: .
