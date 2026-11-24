@@ -29,7 +29,7 @@ async function addTeacher(){
   const secondaryAuth=secondary.auth();
   const credential=await secondaryAuth.createUserWithEmailAndPassword(email,password);
   uid=credential.user.uid;
-  await db.collection('teachers').doc(uid).set({name,mobile,email,status:'inactive',mustChangePassword:true,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:adminUid});
+  await db.collection('teachers').doc(uid).set({name,mobile,email,status:'inactive',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:adminUid});
   await secondaryAuth.signOut();
   $('newEmail').value='';$('newName').value='';$('newMobile').value='';$('newPassword').value='';
   msg('नवीन शिक्षक लॉगिन तयार झाले. UID: '+uid+'\nखाते निष्क्रिय आहे. पेमेंटची पडताळणी करूनच सदस्यत्व आणि खाते सक्रिय करा. तात्पुरता पासवर्ड शिक्षकाला सुरक्षितपणे द्या.');
