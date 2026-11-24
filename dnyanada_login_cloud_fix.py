@@ -205,7 +205,22 @@ c = replace(c,
     "function addUI(){",
     """function addUI(){
  const css=document.createElement('style');
- css.textContent=`
+  css.textContent=`
+ #dny-cloud-tools > button {
+   width:65px !important;
+   min-width:0 !important;
+   max-width:65px !important;
+   height:24px !important;
+   min-height:0 !important;
+   max-height:24px !important;
+   padding:0 !important;
+   margin:0 auto !important;
+   font-size:10px !important;
+   line-height:20px !important;
+   border:1px solid white !important;
+   box-sizing:border-box !important;
+ }
+ 
  html.dnyanada-login-locked #dny-cloud-tools {
    display:none !important;
  }
