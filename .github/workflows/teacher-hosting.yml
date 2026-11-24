@@ -50,7 +50,27 @@ jobs:
           cp www/index.html teacher-site/index.html
           cp dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
           cp firebase.teacher.json firebase.json
-
+          
+          cp manifest.json teacher-site/manifest.json
+          python3 -m pip install Pillow
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          img = Image.open("logo.png").convert("RGBA")
+          for size in (192, 512):
+              img.resize((size, size), Image.Resampling.LANCZOS).save(f"teacher-site/icon-{size}.png")
+          p = Path("teacher-site/index.html")
+          s = p.read_text(encoding="utf-8")
+          tag = '<link rel="manifest" href="/manifest.json">'
+          if tag not in s:
+              pos = s.lower().find("</head>")
+              if pos < 0:
+                  raise SystemExit("STOP: head tag missing")
+              s = s[:pos] + tag + "\n" + s[pos:]
+          p.write_text(s, encoding="utf-8")
+          print("PWA setup completed")
+          PY
+          
       - name: Deploy teacher website
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
