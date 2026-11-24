@@ -92,23 +92,25 @@ async function loadStats(){
 
   const [total,active,inactive,expired] =
    await Promise.all([
-    db.collection('teachers').count().get(),
+    db.collection('teachers').get(),
     db.collection('teachers')
-      .where('status','==','active').count().get(),
+      .where('status','==','active').get(),
     db.collection('teachers')
-      .where('status','==','inactive').count().get(),
+      .where('status','==','inactive').get(),
     db.collection('subscriptions')
-      .where('expiryDate','<',now).count().get()
+      .where('expiryDate','<',now).get()
    ]);
 
   if(version!==statsVersion || !authorized ||
      auth.currentUser?.uid!==uid)return;
 
-  $('countTotal').textContent=total.data().count;
-  $('countActive').textContent=active.data().count;
-  $('countInactive').textContent=inactive.data().count;
-  $('countExpired').textContent=expired.data().count;
-
+  $('countTotal').textContent=total.size;
+$('countActive').textContent=active.size;
+$('countInactive').textContent=inactive.size;
+$('countExpired').textContent=expired.size;
+  
+  
+  
   $('statsInfo').textContent=
    'सक्रिय व निष्क्रिय संख्या खाते स्थितीनुसार आहे. '+
    'मुदत संपलेली संख्या सदस्यत्व नोंदींनुसार आहे.';
