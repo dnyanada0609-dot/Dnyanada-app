@@ -46,7 +46,46 @@ def update_student_cloud_message(source):
     module=replace(module,old,new)
     return source[:m.start(2)]+base64.b64encode(module.encode('utf-8')).decode('ascii')+source[m.end(2):]
 
+# Student form only: separate required fields from optional information.
+# Keep existing Aadhaar values in historical records, but do not display or accept
+# a new number in this form. Printed class lists retain a blank column.
+def student_minimal_form(source):
+    matches=list(re.finditer(r'(\bclassFrame:\s*")([A-Za-z0-9+/=]+)(")',source))
+    if len(matches)!=1: raise SystemExit('STOP: class module missing or duplicated')
+    m=matches[0]
+    h=base64.b64decode(m[2],validate=True).decode('utf-8')
+    h=replace(h,'<h3>हजेरीसाठी आवश्यक मुख्य माहिती</h3>','<h3>मुख्य विद्यार्थी माहिती</h3>')
+    h=replace(h,'<label>जनरल रजिस्टर नंबर</label>','<label>जनरल रजिस्टर नंबर (ऐच्छिक)</label>')
+    h=replace(h,'<input id="birth" type="date"></div><div class="field"><label>मूळ जात *</label>', '<input id="birth" type="date" required></div></div><h3>अतिरिक्त विद्यार्थी माहिती — सर्व ऐच्छिक</h3><p class="small">शाळेच्या अधिकृत परवानगीने शैक्षणिक कामासाठी आवश्यक असल्यासच अतिरिक्त माहिती भरा. अतिरिक्त माहिती रिकामी ठेवूनही विद्यार्थी जतन करता येईल.</p><div class="formgrid"><div class="field"><label>मूळ जात (ऐच्छिक)</label>')
+    h=replace(h,'<h3>अतिरिक्त विद्यार्थी माहिती</h3><div class="formgrid">','<div class="formgrid">')
+    h=replace(h,'<select id="studentClass">','<select id="studentClass" required>')
+    h=replace(h,'<select id="gender">','<select id="gender" required>')
+    h=replace(h,'<input id="aadhaar" inputmode="numeric" maxlength="12" placeholder="१२ अंकी क्रमांक">','<textarea id="aadhaar" rows="2" readonly aria-label="आधार क्रमांक प्रिंटनंतर हाताने लिहा" placeholder="प्रिंट काढल्यानंतर आधार कार्ड क्रमांक हाताने लिहावा."></textarea><p class="small" style="color:#125b92;margin:4px 0">आवश्यक असल्यास प्रिंट काढल्यानंतर आधार कार्ड क्रमांक हाताने लिहावा. या बॉक्समध्ये क्रमांक भरता येणार नाही.</p>')
+    for field in ('bpl','disability','meal'):
+        h=replace(h,f'<select id="{field}">',f'<select id="{field}"><option value="">निवड ऐच्छिक</option>')
+    h=replace(h,"const s={id:editId||('s'+Date.now()+Math.random().toString(16).slice(2,6)),name,", "if(!gender.value){alert('कृपया लिंग निवडा.');return}if(!birth.value){alert('कृपया जन्मतारीख निवडा.');return}const s={id:editId||('s'+Date.now()+Math.random().toString(16).slice(2,6)),name,")
+    h=replace(h,'aadhaar:aadhaar.value.trim()',"aadhaar:editId?(data.students.find(x=>x.id===editId)?.aadhaar||''):''")
+    h=replace(h,"aadhaar.value=s.aadhaar||'';","aadhaar.value='';")
+    h=replace(h,"bpl.value='नाही';disability.value='नाही';meal.value='होय';","bpl.value='';disability.value='';meal.value='';")
+    h=replace(h,"bpl:s.bpl||'नाही',disability:s.disability||'नाही'","bpl:s.bpl??'नाही',disability:s.disability??'नाही'")
+    h=replace(h,"bpl.value=s.bpl||'नाही';disability.value=s.disability||'नाही';","bpl.value=s.bpl??'नाही';disability.value=s.disability??'नाही';")
+    h=replace(h,"meal.value=s.meal||'होय';","meal.value=s.meal??'होय';")
+    # Keep the previous default for older records with no meal field; new explicit
+    # blank selections are not counted as confirmed meal beneficiaries.
+    if h.count("String(s.meal||'होय')")!=2: raise SystemExit('STOP: unexpected meal counters')
+    h=h.replace("String(s.meal||'होय')","String(s.meal??'होय')")
+    h=replace(h,"<td>${esc(s.aadhaar||'')}</td><td>${esc(s.bpl||'नाही')}</td><td>${esc(s.disability||'नाही')}</td>","<td></td><td>${esc(s.bpl??'नाही')}</td><td>${esc(s.disability??'नाही')}</td>")
+    h=replace(h,"['aadhaar','आधार क्रमांक']","['aadhaar','आधार क्रमांक (हस्तलिखित)']")
+    h=replace(h,"'विद्यार्थ्याचा पत्ता','आधार क्रमांक','बीपीएल'","'विद्यार्थ्याचा पत्ता','आधार क्रमांक (हस्तलिखित)','बीपीएल'")
+    h=replace(h,"const val=(st,k)=>k==='calculatedAge'?","const val=(st,k)=>k==='aadhaar'?'':k==='calculatedAge'?")
+    h=replace(h,"if(k.startsWith('blank')) return 22;","if(k.startsWith('blank')) return 22;\n  if(k==='aadhaar') return 22;")
+    h=replace(h,"<h2>विद्यार्थी माहिती यादी</h2><table>${colgroup}","<h2>विद्यार्थी माहिती यादी</h2>${keys.includes('aadhaar')?'<p style=\"font-size:11px\">आवश्यक असल्यास प्रिंट काढल्यानंतर आधार कार्ड क्रमांक हाताने लिहावा.</p>':''}<table>${colgroup}")
+    h=replace(h,'हजेरी टॅबमध्ये नाव, लिंग, जन्मतारीख, मूळ जात आणि जात प्रवर्ग ही मुख्य माहितीच दिसेल. अतिरिक्त माहिती येथेच राहील.','मुख्य माहिती भरून विद्यार्थी जतन करा. जात व प्रवर्ग भरले असल्यास संबंधित अहवालात वापरले जातील. अतिरिक्त माहिती ऐच्छिक आहे.')
+    return source[:m.start(2)]+base64.b64encode(h.encode('utf-8')).decode('ascii')+source[m.end(2):]
+
 s=update_student_cloud_message(s)
+s=student_minimal_form(s)
+print("Student required/optional form and handwritten Aadhaar column applied")
 print('Student cloud notice updated; local save feedback installed in app frames')
 
 s=view_only_books(s)
