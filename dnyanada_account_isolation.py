@@ -132,6 +132,7 @@ window.dnCumAadhaarBlank=blank;blank();const p=document.getElementById('p3');if(
         return h
     def cce(h):
         # Change presentation only. Keep subject keys, marks, slots and grade bridges intact.
+        label_hits=[0,0,0,0,0]
         def report_labels(doc):
             pairs=(
                 ('<td class="subject-name" rowspan="2">${s.name}</td>',
@@ -145,8 +146,13 @@ window.dnCumAadhaarBlank=blank;blank();const p=document.getElementById('p3');if(
                 ("td(sub.name,'excel-subject-cell')",
                  "td(sub.name==='परिसर अभ्यास'?'परिसर अभ्यास/विज्ञान':sub.name,'excel-subject-cell')"),
             )
-            for old,new in pairs:
-                doc=replace(doc,old,new)
+            # The live build may omit an older renderer, or have several copies.
+            # Only replace these exact display expressions, never the subject key.
+            for i,(old,new) in enumerate(pairs):
+                count=doc.count(old)
+                label_hits[i]+=count
+                if count:
+                    doc=doc.replace(old,new)
             return doc
         # The embedded marks/notes documents share the same CCE display templates.
         pattern=r'(const contents=\[")([A-Za-z0-9+/=]+)(",")([A-Za-z0-9+/=]+)(",")([A-Za-z0-9+/=]+)("\];)'
@@ -161,7 +167,9 @@ window.dnCumAadhaarBlank=blank;blank();const p=document.getElementById('p3');if(
         enc=[base64.b64encode(x.encode()).decode() for x in parts]
         h=h[:m.start()]+m[1]+enc[0]+m[3]+enc[1]+m[5]+enc[2]+m[7]+h[m.end():]
         h=report_labels(h)
-        print('CCE marks, consolidated table and result review display labels updated')
+        if not label_hits[0] or not label_hits[1] or not sum(label_hits[2:]):
+            raise SystemExit('STOP: one CCE report has no recognized display template: '+str(label_hits))
+        print('CCE display label replacements (marks, consolidated, review variants):',label_hits)
         return h
     module('cumulativeFrame',cumulative)
     module('hpcFrame',hpc)
