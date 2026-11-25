@@ -85,6 +85,68 @@ def student_minimal_form(source):
 
 s=update_student_cloud_message(s)
 s=student_minimal_form(s)
+# Target only the three embedded modules. Preserve record identifiers and all other code.
+def patch_requested_modules(source):
+    def module(name, transform):
+        nonlocal source
+        ms=list(re.finditer(r'(\b'+name+r':\s*")([A-Za-z0-9+/=]+)(")',source))
+        if len(ms)!=1: raise SystemExit('STOP: module missing/duplicated: '+name)
+        m=ms[0]; old=base64.b64decode(m[2],validate=True).decode('utf-8'); new=transform(old)
+        source=source[:m.start(2)]+base64.b64encode(new.encode()).decode()+source[m.end(2):]
+    def append_script(h,script):
+        pos=h.lower().rfind('</body>')
+        if pos<0: raise SystemExit('STOP: module body missing')
+        return h[:pos]+script+h[pos:]
+    def cumulative(h):
+        # Keep contenteditable attributes in the original index-based record schema;
+        # inert prevents user interaction without shifting any saved field indices.
+        h=replace(h,'<td contenteditable="true">विद्यार्थी आधार कार्ड संकेतांक</td><td contenteditable="true"></td>', '<td contenteditable="true" inert data-dn-aadhaar-label>विद्यार्थी आधार कार्ड संकेतांक</td><td contenteditable="true" inert data-dn-aadhaar-lock aria-label="प्रिंट काढल्यानंतर आधार कार्ड क्रमांक हाताने लिहावा"></td>')
+        h=replace(h,"'विद्यार्थी आधार कार्ड संकेतांक':s.aadhaar", "'विद्यार्थी आधार कार्ड संकेतांक':''")
+        # Clean before synchronous exports and saves; old stored snapshots are not bulk deleted.
+        for anchor in ('function collect(){','function saveHtml(){','function save(){if(!selected||restoring)return;','function capture(){','function gyCumNativePrint(all){'):
+            # print function may be modified by existing workflow; other guards still apply.
+            if anchor=='function gyCumNativePrint(all){' and h.count(anchor)==0: continue
+            h=replace(h,anchor,anchor+'window.dnCumAadhaarBlank?.();')
+        h=append_script(h,'''<style> #p3 [data-dn-aadhaar-lock]{min-height:28px;cursor:default;}@media screen{#p3 [data-dn-aadhaar-lock]:empty::after{content:"प्रिंट काढल्यानंतर आधार कार्ड क्रमांक हाताने लिहावा.";font-size:12px;color:#125b92;font-weight:600}}@media print{#p3 [data-dn-aadhaar-lock]::after{content:none!important}}</style><script id="dn-cum-aadhaar-handwritten">(function(){
+function blank(){const row=document.querySelector('#p3 #body3 tr');if(!row||row.cells.length<2)return;const a=row.cells[0],b=row.cells[1];if(!a.hasAttribute('data-dn-aadhaar-label')){a.setAttribute('data-dn-aadhaar-label','');a.setAttribute('inert','')}if(a.textContent!=='विद्यार्थी आधार कार्ड संकेतांक')a.textContent='विद्यार्थी आधार कार्ड संकेतांक';if(!b.hasAttribute('data-dn-aadhaar-lock')){b.setAttribute('data-dn-aadhaar-lock','');b.setAttribute('inert','');b.setAttribute('aria-label','प्रिंट काढल्यानंतर आधार कार्ड क्रमांक हाताने लिहावा')}if(b.textContent||b.children.length)b.replaceChildren();}
+window.dnCumAadhaarBlank=blank;blank();const p=document.getElementById('p3');if(p)new MutationObserver(blank).observe(p,{childList:true,characterData:true,subtree:true});document.addEventListener('beforeinput',e=>{if(e.target.closest?.('[data-dn-aadhaar-lock],[data-dn-aadhaar-label]'))e.preventDefault()},true);window.addEventListener('beforeprint',blank);
+})();</script>''')
+        return h
+    def hpc(h):
+        h=replace(h,"${input('आधार आयडी')}",'''<div class="field"><label>आधार आयडी :</label><input data-key="आधार आयडी" readonly aria-label="प्रिंट काढल्यानंतर आधार कार्ड क्रमांक हाताने लिहावा" placeholder="प्रिंट काढल्यानंतर आधार कार्ड क्रमांक हाताने लिहावा."></div>${input('तालुका')}${input('जिल्हा')}''')
+        h=replace(h,'let gyHpcTeacherProfile=null;',"let gyHpcTeacherProfile=null;try{gyHpcTeacherProfile=JSON.parse(localStorage.getItem('gyanadaTeacherProfile')||'null')}catch(e){}")
+        h=replace(h,"const p=gyHpcTeacherProfile;if(!p)return;","try{const saved=JSON.parse(localStorage.getItem('gyanadaTeacherProfile')||'null');if(saved)gyHpcTeacherProfile=saved}catch(e){}const p=gyHpcTeacherProfile;if(!p)return;")
+        h=replace(h,"Object.entries(fields).forEach(([key,value])=>{if(value)hpcSetField(key,value)});", "Object.entries(fields).forEach(([key,value])=>{if(value!==undefined&&value!==null&&value!==''){const el=Array.from(document.querySelectorAll('#pages [data-key]')).find(e=>e.dataset.key===key);if(el)el.value=String(value)}});")
+        # Block old values at all loading/saving paths, including print preview.
+        h=replace(h,"function save(notify){let data={};", "function save(notify){const aad=document.querySelector('[data-key=\"आधार आयडी\"]');if(aad)aad.value='';let data={};")
+        h=replace(h,"let v=data[el.dataset.key];if(v===undefined)return;", "let v=el.dataset.key==='आधार आयडी'?'':data[el.dataset.key];if(v===undefined)return;")
+        h=replace(h,"let v=data[el.dataset.key];if(el.type==='checkbox'||el.type==='radio')", "let v=el.dataset.key==='आधार आयडी'?'':data[el.dataset.key];if(el.type==='checkbox'||el.type==='radio')")
+        h=replace(h,"function hpcSetField(key,value){", "function hpcSetField(key,value){if(key==='आधार आयडी')return;")
+        h=replace(h,"function hpcCreateCover(){", "function hpcCreateCover(){gyHpcApplyTeacher();")
+        # Use the current teacher profile on the print-only cover, never a stale cover fallback.
+        h=replace(h,"value.textContent=hpcCoverValue(keys)||localStorage.getItem(storeKey)||'';", "const profileKeys={'शाळेचे नाव':'schoolName','UDISE कोड':'udise','तालुका':'taluka','जिल्हा':'district'};const profileKey=profileKeys[label];value.textContent=profileKey&&gyHpcTeacherProfile&&Object.prototype.hasOwnProperty.call(gyHpcTeacherProfile,profileKey)?String(gyHpcTeacherProfile[profileKey]??''):(hpcCoverValue(keys)||localStorage.getItem(storeKey)||'');")
+        h=replace(h,"hpcApplyMaster(linkedStudents[i]);calcAttendance()}","hpcApplyMaster(linkedStudents[i]);gyHpcApplyTeacher();calcAttendance()}")
+        h=append_script(h,'''<style>@media print{input[data-key="आधार आयडी"]::placeholder{color:transparent!important}}</style><script>document.addEventListener('DOMContentLoaded',()=>{gyHpcApplyTeacher()});</script>''')
+        # Print clones use input values or placeholders? ensure no placeholder copied in preview.
+        h=replace(h,"const orig=originals[j];if(!orig)return;", "const orig=originals[j];if(!orig)return;if(orig.dataset.key==='आधार आयडी'){el.value='';el.removeAttribute('placeholder');el.removeAttribute('value');return;}")
+        return h
+    def cce(h):
+        # Only the progress-report display label; preserve all ten grade slots.
+        pattern=r'(const contents=\[")([A-Za-z0-9+/=]+)(","[A-Za-z0-9+/=]+",")([A-Za-z0-9+/=]+)("\];)'
+        matches=list(re.finditer(pattern,h))
+        if len(matches)!=1: raise SystemExit('STOP: progress embedded source missing or duplicated')
+        m=matches[0]
+        pr=base64.b64decode(m[4],validate=True).decode('utf-8')
+        pr=replace(pr,"const subjects=['मराठी','हिंदी','इंग्रजी','गणित','परिसर अभ्यास','विज्ञान'", "const subjects=['मराठी','हिंदी','इंग्रजी','गणित','परिसर अभ्यास/ विज्ञान','विज्ञान'")
+        return h[:m.start(4)]+base64.b64encode(pr.encode()).decode()+h[m.end(4):]
+    module('cumulativeFrame',cumulative)
+    module('hpcFrame',hpc)
+    module('cceFrame',cce)
+    return source
+
+s=patch_requested_modules(s)
+print('Requested cumulative/HPC handwritten Aadhaar, HPC profile and progress-report display label applied')
+
 print("Student required/optional form and handwritten Aadhaar column applied")
 print('Student cloud notice updated; local save feedback installed in app frames')
 
