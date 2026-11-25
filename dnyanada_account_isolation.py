@@ -207,6 +207,122 @@ cloud=replace(cloud,'const info = meta.data() || {};','const info = scopedMeta(m
 cloud=replace(cloud,'await root.set({','await root.set({ scopedBackupV2: {')
 cloud=replace(cloud,'schema:2\n });','schema:2\n } }, {merge:true});')
 cloud=replace(cloud,'function context(){', "function scopedMeta(doc){ const d=doc.exists?(doc.data()||{}):{}; return d.scopedBackupV2 || (d.schema===2?d:{}); }\nfunction context(){")
+
+# Retention: manage only successfully committed new versions, not historical unknown chunks.
+# Root transaction coordinates concurrent devices; legacy metadata is never replaced.
+retention_js = r"""
+const KEEP_BACKUPS=3;
+const CLEANUP_BATCH=8;
+const CLEANUP_LIMIT=320;
+const MAX_RETIRED=64;
+const RETENTION_AGE=10*60*1000;
+function retentionEntry(value){
+ if(!value || typeof value.latestVersion!=='string' || !/^[br][a-z0-9_]{1,90}$/.test(value.latestVersion) || !Number.isSafeInteger(value.chunkCount) || value.chunkCount<1 || value.chunkCount>1000)return null;
+ return {latestVersion:value.latestVersion,chunkCount:value.chunkCount,managed:value.managed===true && /^r[a-f0-9]{32}$/.test(value.latestVersion)};
+}
+function retentionState(doc){
+ const data=doc.exists?(doc.data()||{}):{};
+ const raw=data.scopedRetentionV1||{};
+ const history=Array.isArray(raw.history)?raw.history.map(retentionEntry).filter(Boolean).slice(0,KEEP_BACKUPS):[];
+ const retired=Array.isArray(raw.retired)?raw.retired.slice(0,MAX_RETIRED).filter(x=>{
+  const e=retentionEntry(x);
+  return e && e.managed && Number.isSafeInteger(x.nextIndex) && x.nextIndex>=0 && x.nextIndex<e.chunkCount && Number.isFinite(x.retiredAt);
+ }).map(x=>({...retentionEntry(x),nextIndex:x.nextIndex,retiredAt:x.retiredAt})):[];
+ return {data,history,retired};
+}
+function chunkRef(root,id,index){return root.collection('chunks').doc(id+'_'+String(index).padStart(5,'0'));}
+function verifyUid(uid){if(context().uid!==uid)throw Error('खाते बदलले आहे.');}
+function newBackupId(){return 'r'+Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');}
+async function publishRetained(db,root,uid,id,count,expected){
+ await db.runTransaction(async tx=>{
+  verifyUid(uid);
+  const doc=await tx.get(root);
+  verifyUid(uid);
+  const current=scopedMeta(doc);
+  if((current.latestVersion||null)!==expected)throw Error('क्लाऊडवर दुसरी आवृत्ती आली. कृपया डेटा परत आणून पुन्हा प्रयत्न करा.');
+  const state=retentionState(doc);
+  const previous=retentionEntry(current);
+  // Older clients might still write an untracked backup; never delete such a version.
+  const prior=previous && state.history.find(x=>x.latestVersion===previous.latestVersion);
+  const list=[{latestVersion:id,chunkCount:count,managed:true},...(previous?[prior||previous]:[]),...state.history];
+  const seen=new Set();
+  const unique=list.filter(x=>{if(seen.has(x.latestVersion))return false;seen.add(x.latestVersion);return true;});
+  const history=unique.slice(0,KEEP_BACKUPS);
+  const protectedIds=new Set([...history.map(x=>x.latestVersion),state.data.latestVersion]);
+  const retired=state.retired.filter(x=>!protectedIds.has(x.latestVersion));
+  for(const e of unique.slice(KEEP_BACKUPS)){
+   if(e.managed && !protectedIds.has(e.latestVersion) && !retired.some(x=>x.latestVersion===e.latestVersion) && retired.length<MAX_RETIRED){
+    retired.push({...e,nextIndex:0,retiredAt:Date.now()});
+   }
+  }
+  // Atomic metadata update: the published pointer and retention state agree.
+  tx.set(root,{scopedBackupV2:{latestVersion:id,chunkCount:count,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),schema:2},scopedRetentionV1:{history,retired}}, {merge:true});
+ });
+}
+async function cleanupRetained(db,root,uid){
+ let deleted=0;
+ while(deleted<CLEANUP_LIMIT){
+  verifyUid(uid);
+  const n=await db.runTransaction(async tx=>{
+   verifyUid(uid);
+   const doc=await tx.get(root);
+   verifyUid(uid);
+   if(!doc.exists)return 0;
+   const state=retentionState(doc);
+   const current=scopedMeta(doc);
+   if(!retentionEntry(current))return 0;
+   const protectedIds=new Set([current.latestVersion,state.data.latestVersion,...state.history.map(x=>x.latestVersion)]);
+   // Grace period protects normal in-flight restore. Only previously committed managed IDs are eligible.
+   const candidate=state.retired.find(x=>!protectedIds.has(x.latestVersion) && Date.now()-x.retiredAt>=RETENTION_AGE);
+   if(!candidate)return 0;
+   const end=Math.min(candidate.chunkCount,candidate.nextIndex+CLEANUP_BATCH,candidate.nextIndex+CLEANUP_LIMIT-deleted);
+   for(let i=candidate.nextIndex;i<end;i++)tx.delete(chunkRef(root,candidate.latestVersion,i));
+   const retired=state.retired.flatMap(x=>x.latestVersion!==candidate.latestVersion?[x]:(end<x.chunkCount?[{...x,nextIndex:end}]:[]));
+   tx.set(root,{scopedRetentionV1:{history:state.history,retired}}, {merge:true});
+   return end-candidate.nextIndex;
+  });
+  if(!n)break;
+  deleted+=n;
+ }
+ return deleted;
+}
+"""
+cloud=replace(cloud,'async function backup(silent=false){',retention_js+'\nasync function backup(silent=false){')
+# Keep old manual behavior, but refuse to overwrite a version that changed during upload.
+start=cloud.index(' if(silent){',cloud.index('async function backup(silent=false){'))
+end=cloud.index(' const chunks=[];',start)
+cloud=cloud[:start]+r""" const remote=await root.get({source:'server'});
+ verifyUid(uid);
+ const expected=scopedMeta(remote).latestVersion||null;
+ if(silent){
+  const known=window.__dnAccount.store.getItem(versionMarker(uid));
+  if(!known)throw Error('प्रथम एकदा स्वतः बॅकअप घ्या.');
+  if(!remote.exists||expected!==known)throw Error('क्लाऊडवर दुसरी आवृत्ती आहे. आपोआप बॅकअप थांबवला.');
+ }
+
+"""+cloud[end:]
+start=cloud.index(" const id='b'",cloud.index('async function backup(silent=false){'))
+end=cloud.index(" const verify=await root.get({source:'server'});",start)
+cloud=cloud[:start]+r""" const id=newBackupId();
+ for(let i=0;i<chunks.length;i++){
+  verifyUid(uid);
+  await chunkRef(root,id,i).set({payload:chunks[i],version:id,index:i});
+ }
+ // All writes must be acknowledged, then every chunk read back from the server.
+ for(let i=0;i<chunks.length;i++){
+  verifyUid(uid);
+  const check=await chunkRef(root,id,i).get({source:'server'});
+  const d=check.exists?check.data():null;
+  if(!d || d.version!==id || d.index!==i || d.payload!==chunks[i])throw Error('बॅकअप भागाची क्लाऊड पडताळणी अयशस्वी. जुना बॅकअप कायम आहे.');
+ }
+ verifyUid(uid);
+ await publishRetained(db,root,uid,id,chunks.length,expected);
+
+"""+cloud[end:]
+cloud=replace(cloud,"   count+' स्थानिक स्टोरेज नोंदी जतन झाल्या.');\n}","   count+' स्थानिक स्टोरेज नोंदी जतन झाल्या.');\n // Cleanup is separate from backup success; failure never rolls back a valid backup.\n try{await cleanupRetained(db,root,uid);}catch(error){console.warn('DNYANADA retention deferred:',error);}\n}")
+# A restore which raced with publication must retry rather than write stale local state.
+cloud=replace(cloud,'  const previous = Object.create(null);',"  const latest=await root.get({source:'server'});\n   verifyUid(uid);\n   if(scopedMeta(latest).latestVersion!==version)throw Error('क्लाऊडवर नवीन बॅकअप आला आहे. कृपया डेटा परत आणा पुन्हा दाबा.');\n   const previous = Object.create(null);")
+
 # Version the external script using its final content, not a fixed release number.
 import hashlib
 version = hashlib.sha256(cloud.encode('utf-8')).hexdigest()[:20]
