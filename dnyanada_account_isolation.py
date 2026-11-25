@@ -131,14 +131,38 @@ window.dnCumAadhaarBlank=blank;blank();const p=document.getElementById('p3');if(
         h=replace(h,"const orig=originals[j];if(!orig)return;", "const orig=originals[j];if(!orig)return;if(orig.dataset.key==='आधार आयडी'){el.value='';el.removeAttribute('placeholder');el.removeAttribute('value');return;}")
         return h
     def cce(h):
-        # Only the progress-report display label; preserve all ten grade slots.
-        pattern=r'(const contents=\[")([A-Za-z0-9+/=]+)(","[A-Za-z0-9+/=]+",")([A-Za-z0-9+/=]+)("\];)'
+        # Change presentation only. Keep subject keys, marks, slots and grade bridges intact.
+        def report_labels(doc):
+            pairs=(
+                ('<td class="subject-name" rowspan="2">${s.name}</td>',
+                 '<td class="subject-name" rowspan="2">${s.name===\'परिसर अभ्यास\'?\'परिसर अभ्यास/विज्ञान\':s.name}</td>'),
+                ('<th colspan="4">परिसर अभ्यास</th>',
+                 '<th colspan="4">परिसर अभ्यास/विज्ञान</th>'),
+                ('cell(escapeAttr(s.name),',
+                 "cell(escapeAttr(s.name==='परिसर अभ्यास'?'परिसर अभ्यास/विज्ञान':s.name),"),
+                ("td(sub.name,'rowspan=", 
+                 "td(sub.name==='परिसर अभ्यास'?'परिसर अभ्यास/विज्ञान':sub.name,'rowspan="),
+                ("td(sub.name,'excel-subject-cell')",
+                 "td(sub.name==='परिसर अभ्यास'?'परिसर अभ्यास/विज्ञान':sub.name,'excel-subject-cell')"),
+            )
+            for old,new in pairs:
+                doc=replace(doc,old,new)
+            return doc
+        # The embedded marks/notes documents share the same CCE display templates.
+        pattern=r'(const contents=\[")([A-Za-z0-9+/=]+)(",")([A-Za-z0-9+/=]+)(",")([A-Za-z0-9+/=]+)("\];)'
         matches=list(re.finditer(pattern,h))
-        if len(matches)!=1: raise SystemExit('STOP: progress embedded source missing or duplicated')
+        if len(matches)!=1: raise SystemExit('STOP: CCE embedded sources missing or duplicated')
         m=matches[0]
-        pr=base64.b64decode(m[4],validate=True).decode('utf-8')
-        pr=replace(pr,"const subjects=['मराठी','हिंदी','इंग्रजी','गणित','परिसर अभ्यास','विज्ञान'", "const subjects=['मराठी','हिंदी','इंग्रजी','गणित','परिसर अभ्यास/ विज्ञान','विज्ञान'")
-        return h[:m.start(4)]+base64.b64encode(pr.encode()).decode()+h[m.end(4):]
+        parts=[base64.b64decode(m[i],validate=True).decode('utf-8') for i in (2,4,6)]
+        parts[0]=report_labels(parts[0])
+        parts[1]=report_labels(parts[1])
+        # Preserve the already requested progress-report change exactly as before.
+        parts[2]=replace(parts[2],"const subjects=['मराठी','हिंदी','इंग्रजी','गणित','परिसर अभ्यास','विज्ञान'", "const subjects=['मराठी','हिंदी','इंग्रजी','गणित','परिसर अभ्यास/ विज्ञान','विज्ञान'")
+        enc=[base64.b64encode(x.encode()).decode() for x in parts]
+        h=h[:m.start()]+m[1]+enc[0]+m[3]+enc[1]+m[5]+enc[2]+m[7]+h[m.end():]
+        h=report_labels(h)
+        print('CCE marks, consolidated table and result review display labels updated')
+        return h
     module('cumulativeFrame',cumulative)
     module('hpcFrame',hpc)
     module('cceFrame',cce)
