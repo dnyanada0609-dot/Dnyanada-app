@@ -107,5 +107,14 @@ cloud=replace(cloud,'const info = meta.data() || {};','const info = scopedMeta(m
 cloud=replace(cloud,'await root.set({','await root.set({ scopedBackupV2: {')
 cloud=replace(cloud,'schema:2\n });','schema:2\n } }, {merge:true});')
 cloud=replace(cloud,'function context(){', "function scopedMeta(doc){ const d=doc.exists?(doc.data()||{}):{}; return d.scopedBackupV2 || (d.schema===2?d:{}); }\nfunction context(){")
+# Version the external script using its final content, not a fixed release number.
+import hashlib
+version = hashlib.sha256(cloud.encode('utf-8')).hexdigest()[:20]
+if 'जुना बॅकअप सुरक्षित ठेवला आहे. पडताळणी आवश्यक.' in cloud:
+    raise SystemExit('STOP: obsolete backup guard remains')
+if 'scopedBackupV2' not in cloud:
+    raise SystemExit('STOP: scoped backup metadata missing')
+output = replace(output, '<script src="/dnyanada_cloud_backup.js"></script>', '<script src="/dnyanada_cloud_backup.js?v='+version+'"></script>')
 p.write_text(output);c.write_text(cloud)
+print('Cloud script content version:', version)
 print('Account isolation candidate built; browser testing required')
