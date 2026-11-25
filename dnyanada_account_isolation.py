@@ -33,7 +33,7 @@ controller=r'''<script>
 const raw=window.localStorage; let account=null, frame=null;
 const boot=BOOT;
 function inject(s){if(s.includes('const host=top.__dnAccount;'))return s;const m=/<head\b[^>]*>/i.exec(s);return m?s.slice(0,m.index+m[0].length)+boot+s.slice(m.index+m[0].length):boot+s;}
-function close(){if(frame){frame.remove();frame=null;}account=null;}
+function close(){document.getElementById('dn-legacy-recovery')?.remove();if(frame){frame.remove();frame=null;}account=null;}
 Object.defineProperty(window,'__dnAccount',{get:()=>account});
 window.__dnClose=close;
 window.__dnOpen=function(uid){
@@ -44,6 +44,25 @@ window.__dnOpen=function(uid){
  const methods={getItem(k){valid();return raw.getItem(prefix+String(k));},setItem(k,v){valid();raw.setItem(prefix+String(k),String(v));},removeItem(k){valid();raw.removeItem(prefix+String(k));},key(i){valid();return keys()[i]??null;},clear(){valid();for(const k of keys())raw.removeItem(prefix+k);}};
  const store=new Proxy(methods,{get(t,k){if(k==='length'){valid();return keys().length;}if(k in t)return t[k];return typeof k==='string'?t.getItem(k)??undefined:undefined;},set(t,k,v){t.setItem(k,v);return true;},deleteProperty(t,k){t.removeItem(k);return true;},ownKeys(){valid();return keys();},getOwnPropertyDescriptor(t,k){return {configurable:true,enumerable:true,value:t.getItem(k),writable:true};}});
  account={uid,prefix,store,inject};
+ const oldButton=document.getElementById('dn-legacy-recovery');if(oldButton)oldButton.remove();
+ const legacyKeys=()=>Array.from({length:raw.length},(_,i)=>raw.key(i)).filter(k=>k&&!/^(firebase:|firebase_|__firebase|dnyanada_cloud_|dn_uid_v1:|dn_legacy_)/i.test(k));
+ const recovery=document.createElement('button');recovery.id='dn-legacy-recovery';recovery.textContent='जुना स्थानिक डेटा परत मिळवा';recovery.style.cssText='position:fixed;bottom:65px;right:8px;z-index:2147483000;background:#fff;color:#125b92;border:1px solid #125b92;border-radius:8px;padding:8px';
+ recovery.onclick=()=>{
+  try{
+   valid();if(document.documentElement.classList.contains('dnyanada-login-locked'))throw Error('प्रथम लॉगिन करा.');
+   if(raw.getItem('dn_legacy_claim_v1'))throw Error('या ब्राउझरमधील जुना डेटा आधीच एका खात्यास जोडला आहे.');
+   const old=legacyKeys();if(!old.length)throw Error('जुन्या स्थानिक नोंदी सापडल्या नाहीत.');
+   if(keys().some(k=>old.includes(k)))throw Error('या खात्यात समान नोंदी आहेत. डेटा बदललेला नाही.');
+   const user=firebase.app('dnyanada-login-gate').auth().currentUser;
+   if(user?.uid!==uid)throw Error('खाते बदलले आहे.');
+   if(!confirm('खाते: '+user.email+'\nजुन्या '+old.length+' स्टोरेज नोंदी सापडल्या. या मोबाईलवरील सर्व जुन्या नोंदी फक्त याच खात्याच्या आहेत याची खात्री असल्यासच पुढे जा. मिश्र डेटा असल्यास रद्द करा.'))return;
+   if(prompt('मालकी निश्चित करण्यासाठी या खात्याचा ईमेल पुन्हा लिहा.')!==user.email)return;
+   const copied=[];try{for(const k of old){valid();store.setItem(k,raw.getItem(k));copied.push(k);}raw.setItem('dn_legacy_claim_v1',uid);}catch(e){for(const k of copied)store.removeItem(k);throw e;}
+   alert('जुन्या स्थानिक नोंदी कॉपी झाल्या. मूळ नोंदी हटवलेल्या नाहीत. ॲप पुन्हा उघडत आहे.');location.reload();
+  }catch(e){alert(e.message);}
+ };
+ if(!raw.getItem('dn_legacy_claim_v1')&&legacyKeys().length)document.body.appendChild(recovery);
+
  frame=document.createElement('iframe');frame.id='dn-app';frame.style.cssText='position:fixed;inset:0;width:100%;height:100%;border:0';
  const bytes=Uint8Array.from(atob(document.getElementById('dn-payload').textContent),x=>x.charCodeAt(0));
  frame.srcdoc=new TextDecoder().decode(bytes);document.body.prepend(frame);
