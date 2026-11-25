@@ -48,6 +48,7 @@ jobs:
           print('Teacher HTML assembled and guarded injection completed')
           PY
 
+          python3 dnyanada_account_isolation.py
           cp www/index.html teacher-site/index.html
           cp dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
           cp firebase.teacher.json firebase.json
