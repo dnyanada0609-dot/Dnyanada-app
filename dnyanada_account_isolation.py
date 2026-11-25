@@ -99,5 +99,13 @@ cloud=replace(cloud,".doc(chunkId)\n      .get();", ".doc(chunkId)\n      .get({
 cloud=replace(cloud,'const {serialized,count,snap}=makePayload();',"const {serialized,count,snap}=makePayload();\n  if(!count)throw Error('स्थानिक नोंदी रिकाम्या आहेत. बॅकअप थांबवला.');")
 cloud=replace(cloud,'const keys = Object.keys(parsed.data);',"const keys = Object.keys(parsed.data);\n   if(!keys.length)throw Error('क्लाऊड बॅकअप रिकामा आहे. स्थानिक डेटा बदललेला नाही.');")
 cloud=replace(cloud,'baseline = snapshot();\n  pendingSince = 0;',"baseline = snapshot();\n   for(const key of keys){if(window.__dnAccount.store.getItem(key)!==parsed.data[key])throw Error('स्थानिक पडताळणी अयशस्वी.');}\n   pendingSince = 0;")
+# Keep legacy root metadata intact; publish scoped metadata separately in the same UID document.
+cloud=replace(cloud,"const existing=await root.get({source:'server'});\n  if(existing.exists && existing.data().schema!==2)throw Error('जुना बॅकअप सुरक्षित ठेवला आहे. पडताळणी आवश्यक.');", "")
+cloud=replace(cloud,'remote.data().latestVersion!==known','scopedMeta(remote).latestVersion!==known')
+cloud=replace(cloud,'verify.data().latestVersion!==id','scopedMeta(verify).latestVersion!==id')
+cloud=replace(cloud,'const info = meta.data() || {};','const info = scopedMeta(meta);')
+cloud=replace(cloud,'await root.set({','await root.set({ scopedBackupV2: {')
+cloud=replace(cloud,'schema:2\n });','schema:2\n } }, {merge:true});')
+cloud=replace(cloud,'function context(){', "function scopedMeta(doc){ const d=doc.exists?(doc.data()||{}):{}; return d.scopedBackupV2 || (d.schema===2?d:{}); }\nfunction context(){")
 p.write_text(output);c.write_text(cloud)
 print('Account isolation candidate built; browser testing required')
