@@ -23,7 +23,10 @@ def inject(s):
     if not m: raise SystemExit('STOP: missing head')
     return s[:m.end()]+boot+s[m.end():]
 def static(m):
-    return m[1]+m[2]+html.escape(inject(html.unescape(m[3])),quote=True)+m[2]
+    content=inject(html.unescape(m[3]))
+    if re.search(r'id=["\']supportFrame["\']',m[1]):
+        content=replace(content,'</main>','<section class="section"><h2>जुना स्थानिक डेटा</h2><button class="action secondary" onclick="top.__dnAccount.recover()">जुना स्थानिक डेटा परत मिळवा</button></section></main>')
+    return m[1]+m[2]+html.escape(content,quote=True)+m[2]
 s=re.sub(r'(<iframe\b[^>]*?\bsrcdoc\s*=\s*)([\"\'])(.*?)\2',static,s,flags=re.I|re.S)
 s=inject(s)
 encoded=base64.b64encode(s.encode()).decode()
@@ -61,7 +64,7 @@ window.__dnOpen=function(uid){
    alert('जुन्या स्थानिक नोंदी कॉपी झाल्या. मूळ नोंदी हटवलेल्या नाहीत. ॲप पुन्हा उघडत आहे.');location.reload();
   }catch(e){alert(e.message);}
  };
- if(!raw.getItem('dn_legacy_claim_v1')&&legacyKeys().length)document.body.appendChild(recovery);
+ account.recover=()=>recovery.onclick();
 
  frame=document.createElement('iframe');frame.id='dn-app';frame.style.cssText='position:fixed;inset:0;width:100%;height:100%;border:0';
  const bytes=Uint8Array.from(atob(document.getElementById('dn-payload').textContent),x=>x.charCodeAt(0));
@@ -90,5 +93,11 @@ cloud=replace(cloud,'keys.length + \' नोंदी पुनर्संच�
 cloud=replace(cloud,"'बदल पाहण्यासाठी ॲप पुन्हा उघडत आहे.'\n  );","'बदल पाहण्यासाठी ॲप पुन्हा उघडत आहे.'\n  );\n  location.reload();")
 # Gate is a separate shell, not the application document.
 output='<!doctype html><html lang="mr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DNYANADA</title></head><body><script type="application/octet-stream" id="dn-payload">'+encoded+'</script>'+controller+'<script>'+gate+'</script><script src="/dnyanada_cloud_backup.js"></script></body></html>'
+# Cloud diagnostics and server-confirmed reads; retain legacy backup protection.
+cloud=cloud.replace('await root.get()', "await root.get({source:'server'})")
+cloud=replace(cloud,".doc(chunkId)\n      .get();", ".doc(chunkId)\n      .get({source:'server'});")
+cloud=replace(cloud,'const {serialized,count,snap}=makePayload();',"const {serialized,count,snap}=makePayload();\n  if(!count)throw Error('स्थानिक नोंदी रिकाम्या आहेत. बॅकअप थांबवला.');")
+cloud=replace(cloud,'const keys = Object.keys(parsed.data);',"const keys = Object.keys(parsed.data);\n   if(!keys.length)throw Error('क्लाऊड बॅकअप रिकामा आहे. स्थानिक डेटा बदललेला नाही.');")
+cloud=replace(cloud,'baseline = snapshot();\n  pendingSince = 0;',"baseline = snapshot();\n   for(const key of keys){if(window.__dnAccount.store.getItem(key)!==parsed.data[key])throw Error('स्थानिक पडताळणी अयशस्वी.');}\n   pendingSince = 0;")
 p.write_text(output);c.write_text(cloud)
 print('Account isolation candidate built; browser testing required')
