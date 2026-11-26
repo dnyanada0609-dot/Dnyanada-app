@@ -855,6 +855,94 @@ def dn_final_shell(s):
     return s[:m.start(2)]+base64.b64encode(payload.encode()).decode()+s[m.end(2):]
 
 output=dn_final_shell(output)
+
+# Final form, oil register and explicit cloud conflict confirmation.
+from pathlib import Path
+import re,base64,hashlib
+
+def change_once(s,a,b):
+    if s.count(a)!=1: raise ValueError('Unexpected source: '+a[:100])
+    return s.replace(a,b,1)
+
+def patch_final_class(h):
+    return change_once(h,'शाळेच्या अधिकृत परवानगीने शैक्षणिक कामासाठी आवश्यक असल्यासच अतिरिक्त माहिती भरा. अतिरिक्त माहिती रिकामी ठेवूनही विद्यार्थी जतन करता येईल.', 'खालील अतिरिक्त माहिती संचयी नोंदपत्रक, जुन्या नमुन्यातील प्रगतीपत्रक आणि HPC CARD (समग्र प्रगतीपत्रक) तयार करण्यासाठी आवश्यक आहे. आपण ॲपमधील वरील सुविधा वापरणार असाल, तरच आवश्यक ते अतिरिक्त मुद्दे भरा. अन्यथा ही माहिती भरण्याची आवश्यकता नाही.<br><br>आपल्या ॲपमध्ये प्रगतीपत्रकाचा नवीन नमुना वापरण्यात आला आहे. त्यासाठी आवश्यक विद्यार्थी माहिती वरील मुख्य विभागात समाविष्ट आहे. अतिरिक्त माहिती न भरताही नवीन नमुन्यातील प्रगतीपत्रक तयार करता येईल.')
+
+def patch_final_poshan(h):
+    h=change_once(h,'''/* फक्त प्राप्त रकान्यातील तेल लिटरमधून किलोमध्ये; सुरुवातीची शिल्लक थेट किलोमध्ये. */
+const OIL_KG_PER_LITRE=0.92;
+const oilToKg=x=>Math.round((Number(x)||0)*OIL_KG_PER_LITRE*1e6)/1e6;
+const oilToLitres=x=>Math.round((Number(x)||0)/OIL_KG_PER_LITRE*1e6)/1e6;
+const regInputKg=el=>el.dataset.field==='तेल'&&el.dataset.kind==='received'?oilToKg(el.value):regNum(el.value);''','''/* तेलाची जतन केलेली आणि नवीन नोंद थेट किलोमध्ये. */
+const regInputKg=el=>regNum(el.value);''')
+    h=change_once(h,"esc(f==='तेल'&&kind==='received'?oilToLitres(val):val)","esc(val)")
+    h=change_once(h,"esc(kind+' '+f+(f==='तेल'&&kind==='received'?' लिटर':' किलो'))","esc(kind+' '+f+' किलो')")
+    h=change_once(h,"title=\"${f==='तेल'?(kind==='received'?'लिटरमध्ये भरा; किलोमध्ये आपोआप रूपांतर':'सुरुवातीची शिल्लक थेट किलोमध्ये भरा'):' '}\"", "title=\"${f==='तेल'?'तेल किलोमध्ये भरा':' '}\" ${f==='तेल'?'readonly':''}")
+    h=change_once(h,'सुरुवातीची शिल्लक किलोमध्ये भरा; फक्त प्राप्त रकान्यातील तेल लिटरमध्ये भरा. १ लिटर = ०.९२ किलो (बदलता येणारा अंदाजित गुणांक); एकूण, खर्च आणि शिल्लक किलोमध्ये दिसतील. आधीच्या सेव्ह नोंदी किलोमध्येच जतन आहेत.', 'सुरुवातीची शिल्लक आणि प्राप्त तेल किलोग्रॅममध्ये भरा. एकूण, खर्च आणि शिल्लक किलोग्रॅममध्ये दिसतील. आधीच्या सेव्ह नोंदी किलोमध्येच जतन आहेत.')
+    a=h.index(' const oilInputs=()=>'); b=h.index(' const showRegisterSaved=()=>',a)
+    if h[a:b].count('const showOilNotice=()=>')!=1:raise ValueError('Oil notification source changed')
+    h=h[:a]+''' const oilInputs=()=>Array.from(document.querySelectorAll('#content .reg-input[data-kind][data-field="तेल"]'));
+ let activeOilDialog=null;
+ const showOilNotice=(el)=>{
+   if(activeOilDialog||!el.readOnly)return;
+   const notice=document.createElement('dialog');notice.className='reg-oil-notice';notice.setAttribute('aria-label','तेलाची नोंद');
+   notice.style.margin='0';notice.style.maxWidth='calc(100vw - 30px)';notice.style.boxSizing='border-box';notice.style.color='#173047';
+   activeOilDialog=notice;
+   const finish=()=>{el.readOnly=false;notice.close();notice.remove();activeOilDialog=null;if(el.isConnected)el.focus();};
+   notice.innerHTML='<div>लिटरचे किलोग्रॅममध्ये रूपांतर केले आहे का?</div><div style="display:flex;justify-content:center;gap:14px"><button type="button" data-oil="yes">होय</button><button type="button" data-oil="no">नाही</button></div>';
+   notice.querySelector('[data-oil="yes"]').onclick=finish;
+   notice.querySelector('[data-oil="no"]').onclick=()=>{
+     notice.innerHTML='<div>तेलाचे किलोग्रॅममध्ये रूपांतर करूनच सदर माहिती भरा.</div><button type="button" data-oil="ok">समजले</button>';
+     const ok=notice.querySelector('[data-oil="ok"]');ok.onclick=finish;ok.focus();
+   };
+   notice.addEventListener('cancel',e=>{e.preventDefault();notice.close();notice.remove();el.blur();activeOilDialog=null;});
+   document.body.appendChild(notice);notice.showModal();
+ };
+ oilInputs().forEach(el=>{
+   el.readOnly=true;
+   el.addEventListener('focus',()=>showOilNotice(el));
+   el.addEventListener('click',()=>showOilNotice(el));
+   el.addEventListener('blur',()=>{if(!activeOilDialog)el.readOnly=true;});
+ });
+'''+h[b:]
+    for token in ('OIL_KG_PER_LITRE','oilToKg','oilToLitres','०.९२ किलो','तेल लिटरमध्ये ॲड करा'):
+        if token in h:raise ValueError('Old oil conversion remains: '+token)
+    return h
+
+def patch_final_cloud(cloud):
+    old=''' if(silent){
+  const known=window.__dnAccount.store.getItem(versionMarker(uid));
+  if(!known)throw Error('प्रथम एकदा स्वतः बॅकअप घ्या.');
+  if(!remote.exists||expected!==known)throw Error('क्लाऊडवर दुसरी आवृत्ती आहे. आपोआप बॅकअप थांबवला.');
+ }'''
+    new=''' const known=window.__dnAccount.store.getItem(versionMarker(uid));
+ const conflict=!!expected && expected!==known;
+ if(silent){
+  if(!known)throw Error('प्रथम एकदा स्वतः बॅकअप घ्या.');
+  if(!remote.exists||expected!==known)throw Error('क्लाऊडवर दुसरी आवृत्ती आहे. दोन्ही उपकरणांतील नोंदी तपासा. आपोआप बॅकअप थांबवला.');
+ }else if(conflict){
+  // Do not silently publish stale local data over a different cloud version.
+  const accepted=confirm('या खात्याचा क्लाऊड बॅकअप आणि या उपकरणातील आवृत्ती वेगवेगळी आहे.\\n\\nया उपकरणातील माहिती क्लाऊडवर नवीनतम आवृत्ती म्हणून जतन करायची आहे का?\\n\\nदोन्ही उपकरणांतील माहिती तपासून स्वतंत्र सुरक्षित प्रत घेतली असेल तरच OK दाबा. अन्यथा Cancel दाबा.');
+  if(!accepted){status('☁ आवृत्ती वेगळी आहे; बॅकअप केला नाही. स्थानिक व क्लाऊड डेटा बदललेला नाही.');return;}
+  verifyUid(uid);
+  if(snapshot()!==snap)throw Error('स्थानिक नोंदी बदलल्या. बॅकअप पुन्हा सुरू करा.');
+ }'''
+    return change_once(cloud,old,new)
+
+def patch_ui_shell(s):
+    ms=list(re.finditer(r'(<script\b[^>]*\bid="dn-payload"[^>]*>)([A-Za-z0-9+/=]+)(</script>)',s))
+    if len(ms)!=1:raise ValueError('Account shell missing')
+    m=ms[0];p=base64.b64decode(m[2],validate=True).decode()
+    for name,fn in [('classFrame',patch_final_class),('poshanFrame',patch_final_poshan)]:
+        found=list(re.finditer(r'(\b'+name+r':\s*")([A-Za-z0-9+/=]+)(")',p))
+        if len(found)!=1:raise ValueError('Module missing '+name)
+        x=found[0];h=fn(base64.b64decode(x[2],validate=True).decode());p=p[:x.start(2)]+base64.b64encode(h.encode()).decode()+p[x.end(2):]
+    return s[:m.start(2)]+base64.b64encode(p.encode()).decode()+s[m.end(2):]
+
+output=patch_ui_shell(output)
+cloud=patch_final_cloud(cloud)
+new_version=hashlib.sha256(cloud.encode('utf-8')).hexdigest()[:20]
+output=change_once(output,'<script src="/dnyanada_cloud_backup.js?v='+version+'"></script>','<script src="/dnyanada_cloud_backup.js?v='+new_version+'"></script>')
+version=new_version
 p.write_text(output);c.write_text(cloud)
 print('Cloud script content version:', version)
 print('Account isolation candidate built; browser testing required')
