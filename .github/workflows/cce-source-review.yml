@@ -1,0 +1,82 @@
+name: Inspect DNYANADA CCE source (No Deploy)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble current teacher website locally
+        run: |
+          set -euo pipefail
+          mkdir -p www
+          cat \
+            part1_CCE_Marks_Web_Print_Fix.txt \
+            part2_CCE_Marks_Web_Print_Fix.txt \
+            part3_CCE_Marks_Web_Print_Fix.txt \
+            part4_CCE_Marks_Web_Print_Fix.txt \
+            > www/index.html
+
+          python3 dnyanada_login_cloud_fix.py
+          python3 dnyanada_inject_gate.py
+          python3 dnyanada_sanchayi_11page_print_fix.py
+          python3 dnyanada_sanchayi_print_v2.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('www/index.html')
+          s = p.read_text(encoding='utf-8')
+          closing = '</body>'
+          pos = s.lower().rfind(closing)
+          if pos < 0:
+              raise SystemExit('STOP: HTML closing body tag missing')
+          tag = '<script src="/dnyanada_cloud_backup.js"></script>\n'
+          if tag not in s:
+              s = s[:pos] + tag + s[pos:]
+          p.write_text(s, encoding='utf-8')
+          if not s.lstrip().lower().startswith('<!doctype html>'):
+              raise SystemExit('STOP: HTML document header missing')
+          if s.lower().count('</body>') < 1 or not s.rstrip().lower().endswith('</html>'):
+              raise SystemExit('STOP: HTML document ending invalid')
+          print('Teacher HTML assembled and guarded injection completed')
+          PY
+
+          cp www/index.html "$RUNNER_TEMP/cce-before-isolation.html"
+          python3 dnyanada_account_isolation.py
+      - name: Extract source modules for repair
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import base64, re, os, json, hashlib
+          root=Path(os.environ['RUNNER_TEMP'])
+          out=root/'cce-source-review'
+          out.mkdir(exist_ok=True)
+          report={}
+          for name,path in [('before',root/'cce-before-isolation.html'),('after',Path('www/index.html'))]:
+              html=path.read_text(encoding='utf-8')
+              if name=='after':
+                  payload=re.findall(r'<script\b[^>]*\bid="dn-payload"[^>]*>([A-Za-z0-9+/=]+)</script>',html)
+                  if len(payload)!=1: raise SystemExit('STOP: unexpected account payload')
+                  html=base64.b64decode(payload[0],validate=True).decode('utf-8')
+              result={}
+              for frame in ('cceFrame','classFrame'):
+                  matches=re.findall(r'\b'+frame+r':\s*"([A-Za-z0-9+/=]+)"',html)
+                  if len(matches)!=1: raise SystemExit('STOP: unexpected module count: '+frame)
+                  source=base64.b64decode(matches[0],validate=True).decode('utf-8')
+                  (out/(name+'-'+frame+'.html')).write_text(source,encoding='utf-8')
+                  result[frame]={'sha256':hashlib.sha256(source.encode()).hexdigest(),'bytes':len(source.encode()),'anchors':{k:source.count(k) for k in ['gyanadaCCEDescriptiveNotes','function notesForProgress','function hydrate(){','function store(){','function deleteStudent','function dnyNotesRecordKey','DNY_CCE_NOTES_UNIFY_20261123']}}
+              report[name]=result
+          (out/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,indent=2))
+          PYCODE
+      - name: Upload local source for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: DNYANADA-CCE-source-review
+          path: ${{ runner.temp }}/cce-source-review/
+          if-no-files-found: error
+          retention-days: 1
