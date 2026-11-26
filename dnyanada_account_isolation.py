@@ -621,6 +621,240 @@ def patch_shell(s):
 
 
 output=patch_shell(output)
+
+# CCE + cumulative consolidated repair, appended to the existing account-isolation build.
+DN_FINAL_HASHES={
+ 'cceFrame':'f80f6a5c61c236f93ab5b99f261f545d1155a09e35f6e59c29f9d7164ddad401',
+ 'classFrame':'b04d1a905eba4bf23ac2d5f891b0dd600e3baf486a01d0e705361eb93313d6a8',
+ 'cumulativeFrame':'826cfa5d9d08c6dc2e1959e129364acf326c2246a4f3e661c88167da028ab3eb',
+}
+DN_FINAL_MARK='DN_CCE_CUM_ID_20261126_V1'
+DN_COMMON=r'''// DN_CCE_CUM_ID_20261126_V1 — scoped account storage only; no external calls.
+const dnMarkKey='dnCCEStudentMarksV2';
+const dnLegacyMarkKey='gyanadaCCEStudentScopedMarksV1';
+function dnMarkReadJson(k,def){if(!top.__dnAccount?.uid)throw Error('शिक्षक खाते पडताळणी आवश्यक आहे.');const raw=localStorage.getItem(k);return raw===null?def:JSON.parse(raw);}
+function dnMarkMaster(){const m=dnMarkReadJson('independentStudentManager_v1',{});return {students:Array.isArray(m.students)?m.students:[],deletedStudents:Array.isArray(m.deletedStudents)?m.deletedStudents:[]};}
+function dnMarkNorm(v){return String(v??'').normalize('NFC').trim().replace(/\s+/g,' ');}
+function dnMarkGrade(v){const s=dnMarkNorm(v), names=['पहिली','दुसरी','तिसरी','चौथी','पाचवी','सहावी','सातवी','आठवी'];for(let i=0;i<8;i++)if(s.includes(names[i]))return String(i+1);const m=s.replace(/[०-९]/g,d=>String('०१२३४५६७८९'.indexOf(d))).match(/(?:^|[^0-9])([1-8])(?:$|[^0-9])/);return m?m[1]:'';}
+function dnMarkClass(st){return dnMarkGrade(st?.className||st?.class||st?.grade||st?.standard||st?.std);}
+function dnMarkStudent(id){const matches=dnMarkMaster().students.filter(s=>s&&typeof s.id==='string'&&s.id===String(id));return matches.length===1?matches[0]:null;}
+function dnMarkYear(){const field=document.getElementById('setupYear');const saved=dnMarkReadJson('gyanadaCCESchoolInfo',{});return dnMarkNorm(field?.value||saved.year||'2026-27');}
+function dnMarkTerm(t){return Number(t)===2?2:1;}
+function dnMarkRecordKey(id,g,y,t){return JSON.stringify([String(id),String(g),String(y),dnMarkTerm(t)]);}
+function dnMarkDb(){const d=dnMarkReadJson(dnMarkKey,{version:2,records:{},claims:{},legacyYear:null});if(!d||d.version!==2||!d.records||typeof d.records!=='object'||Array.isArray(d.records)||!d.claims||typeof d.claims!=='object'||Array.isArray(d.claims))throw Error('गुणांच्या नोंदींची रचना अवैध आहे.');return d;}
+function dnMarkPutDb(d){localStorage.setItem(dnMarkKey,JSON.stringify(d));}
+function dnMarkClean(a){return Array.from({length:198},(_,i)=>{const v=String(a?.[i]??'').trim().replace(/[०-९]/g,d=>String('०१२३४५६७८९'.indexOf(d)));return /^(?:\d+(?:\.\d+)?)?$/.test(v)?v:'';});}
+function dnMarkMigrate(d){
+ const old=dnMarkReadJson(dnLegacyMarkKey,{}),m=dnMarkMaster();if(!old||typeof old!=='object'||Array.isArray(old))return false;
+ let changed=false;
+ if(!d.legacyYear){const y=dnMarkNorm(dnMarkReadJson('gyanadaCCESchoolInfo',{}).year);if(!y)return false;d.legacyYear=y;changed=true;}
+ for(const [key,values] of Object.entries(old)){
+  if(Object.prototype.hasOwnProperty.call(d.claims,key)||!Array.isArray(values))continue;
+  let p;try{p=JSON.parse(key)}catch(e){continue}if(!Array.isArray(p)||p.length!==3||!['1','2'].includes(String(p[2])))continue;
+  const [g0,n,t]=p,g=dnMarkGrade(g0),name=dnMarkNorm(n);if(!g||!name)continue;
+  const match=m.students.filter(s=>s?.id&&dnMarkClass(s)===g&&dnMarkNorm(s.name)===name);
+  // A deleted student may have been replaced with an identical name; never guess ownership.
+  const deleted=m.deletedStudents.some(s=>dnMarkNorm(s?.name)===name&&(!dnMarkClass(s)||dnMarkClass(s)===g));
+  if(deleted){d.claims[key]={blocked:true};changed=true;continue;}
+  if(match.length!==1)continue;
+  const target=dnMarkRecordKey(match[0].id,g,d.legacyYear,t);
+  if(!Object.prototype.hasOwnProperty.call(d.records,target))d.records[target]=dnMarkClean(values);
+  d.claims[key]={id:String(match[0].id),target};changed=true;
+ }
+ // Older summary snapshots are eligible only if they contain an explicit matching class and name.
+ // Never infer student identity from an old roll number. Preserve the old stores unchanged.
+ const rollRecords=dnMarkReadJson('gyanadaCCEAllStudentMarks',{});
+ for(const [oldKey,r] of Object.entries(rollRecords||{})){
+  const claim='roll:'+oldKey;if(Object.prototype.hasOwnProperty.call(d.claims,claim)||!Array.isArray(r?.marks))continue;
+  const g=dnMarkGrade(r.gradeClass||r.className||r.class),n=dnMarkNorm(r.name),t=Number(r.term||(/_2$/.test(oldKey)?2:1));
+  if(!g||!n||![1,2].includes(t))continue;
+  const match=m.students.filter(s=>s?.id&&dnMarkClass(s)===g&&dnMarkNorm(s.name)===n);
+  if(m.deletedStudents.some(s=>dnMarkNorm(s?.name)===n&&(!dnMarkClass(s)||dnMarkClass(s)===g))){d.claims[claim]={blocked:true};changed=true;continue;}
+  if(match.length!==1)continue;const y=dnMarkNorm(r.year)||d.legacyYear,target=dnMarkRecordKey(match[0].id,g,y,t);
+  if(!Object.prototype.hasOwnProperty.call(d.records,target))d.records[target]=dnMarkClean(r.marks);
+  d.claims[claim]={id:String(match[0].id),target};changed=true;
+ }
+ return changed;
+}
+function dnMarkReadyDb(){const d=dnMarkDb();if(dnMarkMigrate(d))dnMarkPutDb(d);return d;}
+function dnMarkGet(id,g,t,y=dnMarkYear()){if(!dnMarkStudent(id))return null;const d=dnMarkReadyDb(),a=d.records[dnMarkRecordKey(id,g,y,t)];return Array.isArray(a)?dnMarkClean(a):null;}
+function dnMarkSet(id,g,t,y,values){const s=dnMarkStudent(id);if(!s||dnMarkClass(s)!==String(g))throw Error('विद्यार्थी किंवा इयत्ता बदलली आहे. पुन्हा निवडा.');const d=dnMarkReadyDb();d.records[dnMarkRecordKey(id,g,y,t)]=dnMarkClean(values);dnMarkPutDb(d);}
+function dnMarkMetrics(values){if(!Array.isArray(values))return Array(9).fill(null);const a=dnMarkClean(values);const sum=x=>x.reduce((v,n)=>v+(Number(n)||0),0);return Array.from({length:9},(_,j)=>{const max=a.slice(j*22,j*22+11),got=a.slice(j*22+11,j*22+22);if(!got.some(v=>v!==''))return null;const m=sum(max),n=sum(got);if(m<=0)return null;const p=100*n/m;return {a:sum(got.slice(0,8)),b:sum(got.slice(8)),total:n,max:m,grade:p>=91?'अ-१':p>=81?'अ-२':p>=71?'ब-१':p>=61?'ब-२':p>=51?'क-१':p>=41?'क-२':''};});}
+function dnMarkRemoveStudent(id){const d=dnMarkDb();let changed=false;for(const k of Object.keys(d.records)){let p;try{p=JSON.parse(k)}catch(e){continue}if(Array.isArray(p)&&p[0]===String(id)){delete d.records[k];changed=true;}}for(const [k,v] of Object.entries(d.claims)){if(v?.id===String(id)){d.claims[k]={blocked:true};changed=true;}}if(changed)dnMarkPutDb(d);}
+'''
+DN_CCE=r'''
+function dnActiveMarks(){const w=window.gyActiveMarksStudent;if(!w?.id)return null;const s=dnMarkStudent(w.id);if(!s||dnMarkClass(s)!==w.grade||w.year!==dnMarkYear())return null;return w;}
+function dnSaveMarks(){if(window.dnMarksLoading)return false;const w=dnActiveMarks();if(!w||document.getElementById('student')?.value!==w.name||document.getElementById('marksPage')?.classList.contains('hidden'))return false;const a=[...document.querySelectorAll('#rows input.mark')].map(x=>x.value);if(a.length!==198)return false;dnMarkSet(w.id,w.grade,currentTerm(),w.year,a);return true;}
+function dnLoadMarks(){const w=dnActiveMarks();window.dnMarksLoading=true;try{const a=w?dnMarkGet(w.id,w.grade,currentTerm(),w.year):null;document.querySelectorAll('#rows input.mark').forEach((x,i)=>x.value=a?.[i]??'');recalc();}finally{window.dnMarksLoading=false;}}
+function dnSummaryRender(){
+ const $=id=>document.getElementById(id),body=$('summaryRows');if(!body)return;
+ const g=dnMarkGrade($('gySummaryGrade')?.value||$('setupClass')?.value),t=dnMarkTerm($('gySummaryTerm')?.value||$('marksTermSelect')?.value),y=dnMarkYear();
+ const list=dnMarkMaster().students.filter(s=>s?.id&&dnMarkClass(s)===g);const db=dnMarkReadyDb();let filled=0;const frag=document.createDocumentFragment();
+ list.forEach((s,i)=>{const a=db.records[dnMarkRecordKey(s.id,g,y,t)],metrics=dnMarkMetrics(a),cells=[i+1,s.name,t===1?'प्रथम':'द्वितीय'];let max=0,got=0,valid=0;for(const m of metrics){if(!m){cells.push('','','','');continue;}cells.push(m.a,m.b,m.total,m.grade);max+=m.max;got+=m.total;valid++;}if(valid)filled++;cells.push(valid?max:'',valid?got:'',max?(100*got/max).toFixed(1)+'%':'',max?gradeFor(100*got/max):'');const tr=document.createElement('tr');cells.forEach((v,j)=>{const td=document.createElement('td');td.textContent=String(v??'');if(j===1)td.style.textAlign='left';tr.append(td)});frag.append(tr);});body.replaceChildren(frag);
+ const put=(id,v)=>{const e=$(id);if(e)e.textContent=v||''};put('gySummaryImportStatusV14','विद्यार्थी: '+list.length+' | गुण भरलेले: '+filled+' | सत्र: '+(t===1?'प्रथम':'द्वितीय'));put('sumTerm','सत्र: '+(t===1?'प्रथम':'द्वितीय'));put('sumSchool',$('setupSchool')?.value||'शाळेचे नाव');put('sumYear',y);put('sumUdise',$('setupUdise')?.value);put('sumTeacher',$('setupTeacher')?.value);put('sumClass',['','पहिली','दुसरी','तिसरी','चौथी','पाचवी','सहावी','सातवी','आठवी'][+g]||'');
+}
+function dnCopyMax(from,to,g,t){const source=dnMarkGet(from,g,t),target=dnMarkGet(to,g,t)||dnMarkClean([]);if(!source||!source.some((v,i)=>i%22<11&&v!==''))return false;for(let i=0;i<198;i++)if(i%22<11)target[i]=source[i];dnMarkSet(to,g,t,dnMarkYear(),target);return true;}
+function dn58Get(key,st,g,data){if(Object.prototype.hasOwnProperty.call(data,key))return data[key];const m=dnMarkMaster(),old=String(st.legacyId||'');if(!old||old===st.id||m.deletedStudents.length)return {};const matches=m.students.filter(s=>dnMarkClass(s)===g&&String(s.grNumber||s.grNo||s.gr||s.roll||s.id||'').trim()===old);if(matches.length!==1||matches[0].id!==st.id)return {};const r=data[g+'|'+old];if(r&&typeof r==='object'){data[key]={...r};localStorage.setItem('gyanada58ResultMarksV2',JSON.stringify(data));return data[key];}return {};}
+'''
+
+def dn_script(h,id,js):
+    m=re.search(r'<script(?:\s|>)',h,re.I)
+    if not m:raise SystemExit('STOP: no script insertion anchor: '+id)
+    return h[:m.start()]+f'<script id="{id}">'+js+'</script>\n'+h[m.start():]
+
+def dn_remove_script(h,id):
+    pattern=r'<script\b[^>]*\bid="'+re.escape(id)+r'"[^>]*>.*?</script>'
+    m=list(re.finditer(pattern,h,re.S|re.I))
+    if len(m)!=1:raise SystemExit('STOP: unexpected script '+id)
+    return h[:m[0].start()]+h[m[0].end():]
+
+def dn_cce_final(h):
+    h=dn_script(h,'dn-cce-id-marks-core',DN_COMMON+DN_CCE)
+    h=block(h,'function storeCurrentStudent(){try{','function marksTermChanged(){','function storeCurrentStudent(){return dnSaveMarks();}\nfunction loadStudentMarks(id){return dnLoadMarks();}')
+    h=block(h,'function saveData(){\n const data={school:','function clearMarks(){',"function saveData(){if(!dnSaveMarks()){alert('प्रथम विद्यार्थी निवडा.');return;}alert('गुण सेव्ह झाले.');}\nfunction loadData(){return;} // No old roll-only cache loading.")
+    h=block(h,'function renderSummary(){\n const tbody=','const progressSubjects=', 'function renderSummary(){return dnSummaryRender();}\n')
+    h=block(h,'function firstTermGrades(roll,term=1){','function renderProgress(){',r'''function firstTermGrades(roll,term=1,studentId){const out=Array(10).fill('');const id=studentId||dnNotesOldRosterId(roll),s=dnMarkStudent(id);if(!s)return out;const metrics=dnMarkMetrics(dnMarkGet(id,dnMarkClass(s),term));[0,1,2,3,4,6,7,8,9].forEach((target,i)=>out[target]=metrics[i]?.grade||'');return out;}''')
+    h=once(h,"values.class=value('setupClass')||value('gyResultClass');","values.class=dnMarkClass(master);")
+    h=once(h,"firstTermGrades(roll,term):[];","firstTermGrades(roll,term,master.id):[];")
+    # Remove legacy roll snapshots and use exactly the same summary renderer for display and print.
+    h=block(h,' function snapshotCurrent(){',' function init(){\n  const root=$(\'summaryPage\');', ' function snapshotCurrent(){return;}\n function render(){return dnSummaryRender();}')
+    h=once(h,"const KEY='gyanadaCCEAllStudentMarks', SNAP='gyanadaCCEGradeSnapshotsV17';","const KEY=dnMarkKey, SNAP='gyanadaCCEGradeSnapshotsV17';")
+    # Marks roster and actions — stable IDs, including equal names.
+    h=once(h,"const n=nameOf(s);if(!n||seen.has(n))return false;seen.add(n);return true","const n=String(s.id||'');if(!nameOf(s)||!n||seen.has(n))return false;seen.add(n);return true")
+    h=once(h,"function showList(){\n const p=by('gyTopMarksPage')", "function showList(){\n window.gyActiveMarksStudent=null;\n const p=by('gyTopMarksPage')")
+    h=once(h,"if(!list[i])return;\n if(by('setupClass'))", "if(!list[i]||!dnMarkStudent(list[i].id))return;\n window.gyActiveMarksStudent=null;\n if(by('setupClass'))")
+    h=once(h,"window.gyActiveMarksStudent={grade:activeGrade,name:nameOf(list[i]),index:i};","window.gyActiveMarksStudent={id:String(list[i].id),grade:activeGrade,name:nameOf(list[i]),year:dnMarkYear(),index:i};")
+    h=block(h,'function forward(i){\n if(i>=list.length-1)return;','function init(){\n const top=by(\'gyTopMarksPage\')',r'''function forward(i){if(i>=list.length-1||!list[i]||!list[i+1])return;const status=by('gyMarksStatus'),term=currentTerm();try{status.textContent=dnCopyMax(list[i].id,list[i+1].id,activeGrade,term)?nameOf(list[i])+' यांची एकूण गुण विभागणी पुढील विद्यार्थ्याला दिली.':'प्रथम या विद्यार्थ्याचे गुणपत्रक भरून सेव्ह करा.';}catch(e){status.textContent=e.message;}}''')
+    h=once(h,"if(e.data?.type==='GYANADA_STUDENT_DATA'){updateClasses();if(by('gyStudentMarksList').style.display!=='none')render()}","if(e.source===parent&&e.data?.type==='GYANADA_STUDENT_DATA'){updateClasses();if(window.gyActiveMarksStudent&&!dnActiveMarks())showList();else if(by('gyStudentMarksList').style.display!=='none')render()}")
+    h=dn_remove_script(h,'gy-marks-student-isolation')
+    # Original maximum-copy panel must also read and write the stable-ID store.
+    h=block(h," function saved(){try{return JSON.parse(localStorage.getItem('gyanadaCCEAllStudentMarks')||'{}')}catch(e){return {}}}", ' function refresh(){const p=document.getElementById(\'gyCopyMaxPanel\')',r''' function roster(){return dnMarkMaster().students.filter(s=>s?.id&&dnMarkClass(s)===grade()).map((s,i)=>({id:String(i+1),studentId:s.id,name:String(s.name||'')}));}''')
+    h=block(h," function copy(){const p=document.getElementById('gyCopyMaxPanel')", " function init(){const page=document.getElementById('marksPage');if(!page||document.getElementById('gyCopyMaxPanel'))",r''' function copy(){const p=document.getElementById('gyCopyMaxPanel'),choice=p.querySelector('select').value,status=p.querySelector('.gyCopyStatus'),list=roster(),from=list[0];if(!from||!choice)return;try{dnSaveMarks();const targets=list.filter(x=>x.id!=='1'&&(choice==='all'||x.id===choice));let n=0;for(const s of targets)if(dnCopyMax(from.studentId,s.studentId,grade(),term()))n++;status.textContent=n?n+' विद्यार्थ्यांना एकूण गुण विभागणी दिली. प्राप्त गुण सुरक्षित आहेत.':'प्रथम गुण सेव्ह करा.';}catch(e){status.textContent=e.message;}}
+ window.gyApplyCopiedFirstMax=function(){return;};''')
+    # Result-review reads only canonical records and counts all distinct IDs.
+    h=once(h,"const name=nameOf(s),id=norm(name);if(!id||seen.has(id))continue;seen.add(id);list.push({name,gender:gender(s.gender||s.sex||s.लिंग)})","const name=nameOf(s),id=String(s.id||'');if(!name||!id||seen.has(id))continue;seen.add(id);list.push({id,name,gender:gender(s.gender||s.sex||s.लिंग)})")
+    h=once(h,"const scoped=read('gyanadaCCEStudentScopedMarksV1')||{};","const scoped=dnMarkReadyDb().records;")
+    h=once(h,"scoped[JSON.stringify([selected,st.name,term])]","scoped[dnMarkRecordKey(st.id,selected,dnMarkYear(),term)]")
+    h=once(h,"['gyanadaTeacherProfile','gyanadaCCEStudentScopedMarksV1'].includes(e.key)","['gyanadaTeacherProfile',dnMarkKey].includes(e.key)")
+    # Do not restore older roll-keyed marks from hidden helpers. Keep old keys as archival data.
+    h=once(h,"function cleanSaved(){\n try{\n  const key='gyanadaCCEAllStudentMarks'", "function cleanSaved(){return;/* archival records not edited */}\nfunction dnUnusedLegacyCleanSaved(){\n try{\n  const key='gyanadaCCEAllStudentMarks'")
+    # 5th/8th result table: actual stable IDs, guarded migration from previous GR-keyed rows.
+    h=once(h,"id:String(s.grNumber||s.grNo||s.gr||s.roll||s.id||'').trim()", "id:String(s.id||'').trim(),legacyId:String(s.grNumber||s.grNo||s.gr||s.roll||s.id||'').trim()")
+    h=once(h,"if(!s.name)return false;const k=s.id||s.name;", "if(!s.name||!s.id)return false;const k=s.id;")
+    h=once(h,"let r=data[key(st)]||{};return f.endsWith('Max')", "let r=dn58Get(key(st),st,$('gy58Class').value,data);return f.endsWith('Max')")
+    # The existing data cache is refreshed before an input, to avoid resurrecting deleted rows.
+    h=once(h,"let k=el.dataset.gy58Key,f=el.dataset.gy58Field;data[k]??={};", "let k=el.dataset.gy58Key,f=el.dataset.gy58Field;data=read(KEY);if(!dnMarkStudent(k.slice(k.indexOf('|')+1)))return;data[k]??={};")
+    # Remove two orphan listeners from the older 5/8 module; the real notes module already has its own listeners.
+    h=once(h,"window.addEventListener('message',e=>{if(e.data?.type==='GYANADA_STUDENT_DATA'){window.gyClassStudentData=e.data.data;setTimeout(()=>{if(state.view==='roster'&&root())rosterView()},60)}});\nwindow.addEventListener('storage',e=>{if(state.view==='roster'&&root())rosterView()});",'')
+    h=once(h,"id:String(s.grNumber||s.grNo||s.gr||s.id||s.roll||'').trim(),attendanceNo:","id:String(s.id||'').trim(),legacyId:String(s.grNumber||s.grNo||s.gr||s.id||s.roll||'').trim(),attendanceNo:")
+    h=once(h,"let k=s.id||s.name;if(!s.name||seen.has(k))return false;","let k=s.id;if(!s.name||!k||seen.has(k))return false;")
+    h=once(h,"const recordKey=g+'|'+(st.id||st.name),r=data()[recordKey]||{},cfg=", "const recordKey=g+'|'+st.id,r=dn58Get(recordKey,st,g,data()),cfg=")
+    h=once(h,"if(k){const all=data();all[recordKey]", "if(k){if(!dnMarkStudent(st.id))return;const all=data();all[recordKey]")
+    h=once(h,"const select=by('gy58MarksStudent'),out=by('gy58MarksSheet'),g=by('gy58Class')?.value||'';", "const select=by('gy58MarksStudent'),out=by('gy58MarksSheet'),g=by('gy58Class')?.value||'';")
+    h=once(h,"const list=students(),old=select.value;", "const list=students(),old=select.selectedOptions[0]?.dataset.studentId||'';")
+    h=once(h,'''list.map((st,i)=>'<option value="'+i+'">'+clean(st.name)+'</option>').join('');
+ if(old!==''&&list[Number(old)])select.value=old;''','''list.map((st,i)=>'<option data-student-id="'+clean(st.id)+'" value="'+i+'">'+clean(st.name)+'</option>').join('');
+ const idx=list.findIndex(st=>st.id===old);if(idx>=0)select.value=String(idx);''')
+    # User selects an option before certificate() rebuilds it: preserve selection by actual ID above.
+    h=once(h,"const students=source().filter(s=>classOf(s)===selected);", "const students=dnMarkMaster().students.filter(s=>classOf(s)===selected);")
+    return h
+
+def dn_class_final(h):
+    h=dn_script(h,'dn-class-cce-cleanup-core',DN_COMMON)
+    h=once(h,'persist();if(st)dnCCEDeleteStudentNotes(id);renderStudents();',r'''persist();if(st){dnCCEDeleteStudentNotes(id);try{dnMarkRemoveStudent(id);const a=dnMarkReadJson('gyanada58ResultMarksV2',{});let changed=false;for(const k of Object.keys(a)){if(k.slice(k.indexOf('|')+1)===String(id)){delete a[k];changed=true;}}if(changed)localStorage.setItem('gyanada58ResultMarksV2',JSON.stringify(a));}catch(e){console.warn(e);alert('विद्यार्थी काढला आहे. जुन्या गुणांची स्वच्छता पूर्ण झाली नाही; ते नवीन विद्यार्थ्यास वापरले जाणार नाहीत.');}}renderStudents();''')
+    return h
+
+DN_CUM=r'''
+function dnCumReadNotes(id,term,year){const d=dnMarkReadJson('dnCCEStudentNotesV3',{}),k=JSON.stringify([String(id),String(year),dnMarkTerm(term)]);const a=d.records?.[k];return Array.isArray(a)?a:null;}
+function dnCumCategory(v){const x=dnMarkNorm(v).replace(/[\s\-_/.,:ः()]/g,'');return /आवड|छंद/.test(x)?'hobby':/सुधार/.test(x)?'improve':/व्यक्तिमत्त्व|व्यक्तिमत्व/.test(x)?'person':/विशेषगुण|विशेषप्रगती/.test(x)?'special':'';}
+function dnCumRefresh(){
+ const selected=window.gyCumCurrentStudent;if(!selected?.id||!document.body.classList.contains('gy-cum-viewer-mode'))return;
+ const st=dnMarkStudent(selected.id);if(!st)return;
+ const cls=dnMarkClass(st),year=dnMarkYear();if(!cls||!year)return;
+ const db=dnMarkReadyDb(),byGrade={};
+ // The cumulative form has one row per grade and term. Use its recorded academic year if known,
+ // otherwise the latest identified record for that grade. Never use the teacher's first class.
+ for(const [key,a] of Object.entries(db.records)){let p;try{p=JSON.parse(key)}catch(e){continue}if(!Array.isArray(p)||p[0]!==String(st.id)||!dnMarkGrade(p[1])||!Array.isArray(a))continue;const [id,g,y,t]=p;const cell=document.querySelector('#body6 [data-class="'+g+'"][data-term="1"][data-col="0"]');const existing=dnMarkNorm(cell?.textContent);if(existing&&existing!==String(y)&&g!==cls)continue;const prior=byGrade[g];if(!prior||String(y)>prior)byGrade[g]=String(y);}
+ byGrade[cls]=year;
+ let auto=dnMarkReadJson('dnCumCceAutoV1',{}),studentAuto=auto[st.id]||{},changed=false,metaChanged=false;
+ function fill(page,g,t,col,value,authoritative){const cell=document.querySelector('#body'+page+' [data-class="'+g+'"][data-term="'+t+'"][data-col="'+col+'"]');if(!cell)return;const k=JSON.stringify([page,g,t,col]),old=studentAuto[k],cur=dnMarkNorm(cell.textContent);if(!authoritative)return;const v=String(value??'');if(v){if(cur!==v){cell.textContent=v;changed=true;}if(old!==v){studentAuto[k]=v;metaChanged=true;}}else if(old!==undefined){if(cur===dnMarkNorm(old)){cell.textContent='';changed=true;}delete studentAuto[k];metaChanged=true;}}
+ for(const [g,y] of Object.entries(byGrade)){
+  for(const t of [1,2]){
+   const a=db.records[dnMarkRecordKey(st.id,g,y,t)],metrics=dnMarkMetrics(a);if(Array.isArray(a)){
+    for(let i=0;i<9;i++)fill(i<6?6:7,g,t,i<6?i+3:i-4,metrics[i]?.grade||'',true);
+    if(metrics.some(Boolean)){const yr=document.querySelector('#body6 [data-class="'+g+'"][data-term="1"][data-col="0"]');if(yr&&!dnMarkNorm(yr.textContent)){yr.textContent=y;changed=true;}}
+   }
+   const uniqueGradeForYear=y===year?g===cls:Object.entries(byGrade).filter(([,v])=>v===y).length===1;const notes=uniqueGradeForYear?dnCumReadNotes(st.id,t,y):null;if(notes!==null){const groups={};for(const n of notes){const c=dnCumCategory(n?.subject||n?.category),v=dnMarkNorm(n?.text||n?.note);if(c&&v)(groups[c]||(groups[c]=new Set())).add(v);}
+    for(const [page,col,c] of [[8,2,'special'],[8,3,'improve'],[9,3,'hobby'],[9,4,'person']])fill(page,g,t,col,[...(groups[c]||[])].join(' ; '),true);
+   }
+  }
+ }
+ if(metaChanged){auto[st.id]=studentAuto;localStorage.setItem('dnCumCceAutoV1',JSON.stringify(auto));}
+ if(changed){window.dnCumSaveCurrent?.();const e=document.getElementById('gyanadaSyncStatus');if(e)e.textContent='CCE मधील श्रेणी व वर्णनात्मक नोंदी योग्य इयत्ता आणि सत्रात भरल्या.';}
+}
+window.dnCumRefresh=dnCumRefresh;
+'''
+
+def dn_cum_final(h):
+    h=dn_script(h,'dn-cum-id-core',DN_COMMON+DN_CUM)
+    # Disable all three competing name/roll-based CCE import scripts; keep attendance and all print templates.
+    for id in ['gy-cumulative-descriptive-import-2026','gy-cumulative-readonly-descriptive-v2','gy-cumulative-cce-subject-grade-autofill-2026']:
+        h=dn_remove_script(h,id)
+    # This legacy anonymous script writes notes to tbody's first row. Remove the whole specific block.
+    a=h.index('<script>\n(function(){\nlet sync=null,studentData=null,profile=null;')
+    b=h.index('</script>',a)+len('</script>')
+    if 'function fillNotes(name)' not in h[a:b] or 'function syncGradePagesForStudent' not in h[a:b]:raise SystemExit('STOP: legacy cumulative bridge mismatch')
+    h=h[:a]+h[b:]
+    # Stable selection and reset of previous student's cells before restoring the selected student's own record.
+    h=once(h,'function cells(){return [...document.querySelectorAll(\'main .page [contenteditable="true"],main .page input,main .page select,main .page textarea\')]}', '''const dnCumBaseline=[...document.querySelectorAll('main .page [contenteditable="true"],main .page input,main .page select,main .page textarea')].filter(e=>!e.closest('#p4,#p5')).map(e=>[e,e.matches('input,textarea,select')?e.value:e.innerHTML]);
+function cells(){return [...document.querySelectorAll('main .page [contenteditable="true"],main .page input,main .page select,main .page textarea')];}
+function dnCumReset(){for(const [e,v] of dnCumBaseline){if(e.isConnected)dnCumPut(e,v);}}
+function dnCumValue(e){return e.matches('input,textarea,select')?e.value:e.innerHTML;}
+function dnCumPut(e,v){if(e.matches('input,textarea,select'))e.value=v;else e.innerHTML=v;}
+function dnCumCoord(e){const page=e.closest('.page')?.id,cls=e.dataset.class,term=e.dataset.term,col=e.dataset.col;return page&&cls&&term&&col!==undefined?JSON.stringify([page,cls,term,col]):null;}
+function dnCumV2Key(o){return 'gy-cum-student-v2-'+encodeURIComponent(String(o.id));}
+function dnCumWarn(){const e=document.getElementById('gyanadaSyncStatus');if(e)e.textContent='जुन्या संचयी नोंदींची रचना बदलली आहे; मूळ प्रत सुरक्षित आहे. कृपया पूर्वीची हस्तलिखित माहिती तपासा.';console.warn('Legacy cumulative layout does not match; archival snapshot untouched.');}
+''')
+    h=block(h,'function save(){if(!selected||restoring)return;','function getClasses(p){',r'''function save(){if(!selected||restoring||!dnMarkStudent(selected.id))return;window.dnCumAadhaarBlank?.();try{const fields=cells(),coords={};for(const e of fields){const k=dnCumCoord(e);if(k)coords[k]=dnCumValue(e);}localStorage.setItem(dnCumV2Key(selected),JSON.stringify({version:2,fields:fields.map(dnCumValue),coords}));}catch(e){console.warn('Cumulative save',e);}}
+function restore(){restoring=true;try{const fields=cells();const fresh=dnMarkReadJson(dnCumV2Key(selected),null);const legacy=dnMarkReadJson(key(selected),null);if(fresh?.version===2){if(Array.isArray(fresh.fields)&&fresh.fields.length===fields.length)fields.forEach((e,i)=>dnCumPut(e,fresh.fields[i]));else dnCumWarn();for(const e of fields){const k=dnCumCoord(e);if(k&&Object.prototype.hasOwnProperty.call(fresh.coords||{},k))dnCumPut(e,fresh.coords[k]);}return;}if(Array.isArray(legacy)){if(legacy.length===fields.length){fields.forEach((e,i)=>dnCumPut(e,legacy[i]));}else{dnCumWarn();}return;}
+// The previous explicit save sometimes used a GR/name key. Only recover when the owner is unambiguous.
+const m=dnMarkMaster(),sel=el('gyanadaStudentSelect'),label=sel?.selectedOptions[0]?.textContent.trim()||'';if(!label)return;const oldId=String(selected.generalRegister||selected.gr||selected.id),prefix='gyanadaCumulativeBrowserSavedV1:';const stable=dnMarkReadJson(prefix+selected.id+'|'+label,null);let manual=stable;if(!manual&&m.deletedStudents.length===0&&m.students.filter(s=>String(s.generalRegister||s.gr||s.id)===oldId).length===1)manual=dnMarkReadJson(prefix+oldId+'|'+label,null);if(Array.isArray(manual?.fields)){if(manual.fields.length===fields.length&&manual.fields.every((x,i)=>x.i===i&&x.kind===fields[i].tagName)){manual.fields.forEach((x,i)=>dnCumPut(fields[i],x.value));}else dnCumWarn();}}catch(e){console.warn('Cumulative restore',e);}finally{restoring=false;}}
+''')
+    h=once(h,"function open(o){\n selected=o;", "function open(o){\n if(!o?.id||!dnMarkStudent(o.id))return;if(selected)save();restoring=true;dnCumReset();selected=o;window.gyCumCurrentStudent=o;")
+    h=once(h,"const opts=[...original.options];const target=opts.find(x=>txt(x.textContent).includes(nameOf(o)));if(target){original.value=target.value;original.dispatchEvent(new Event('change',{bubbles:true}))}","const i=roster.findIndex(x=>x.id===o.id);if(i>=0&&[...original.options].some(x=>x.value===String(i))){original.value=String(i);}")
+    h=once(h,"page=1;window.gyCumCurrentStudent=o;restore();setTimeout(()=>{if(window.gyCumRefreshGrades)window.gyCumRefreshGrades()},100);window.dispatchEvent(new Event('gyCumStudentOpened'));if(window.gyCumCceSnapshot&&window.gyCumApplySessionGrades)window.gyCumApplySessionGrades(o,window.gyCumCceSnapshot);if(window.gyCumCceSnapshot&&window.gyCumApplyCceGrades)window.gyCumApplyCceGrades(o,window.gyCumCceSnapshot);", "page=1;if(original)original.dispatchEvent(new Event('change',{bubbles:true}));window.dnCumSwitchPage4?.();restore();restoring=true;window.dnCumFillSelected?.();restoring=false;window.dispatchEvent(new Event('gyCumStudentOpened'));dnCumRefresh();")
+    h=once(h,"window.gyCumReturn=()=>{save();selected=null;", "window.dnCumSaveCurrent=save;window.gyCumReturn=()=>{save();selected=null;window.gyCumCurrentStudent=null;")
+    h=once(h,"if(page===6||page===7){if(window.gyCumRefreshGrades)window.gyCumRefreshGrades();setTimeout(()=>window.gyCumSyncActualGrades?.(),180)}", "if(page>=6&&page<=9)dnCumRefresh();")
+    h=once(h,"function updateRoster(arr){if(!Array.isArray(arr))return;roster=arr;if(openedList)list()}","function updateRoster(arr){if(!Array.isArray(arr))return;roster=arr;if(selected&&!arr.some(s=>s.id===selected.id)){selected=null;window.gyCumCurrentStudent=null;document.body.classList.remove('gy-cum-viewer-mode');document.body.classList.add('gy-cum-dashboard-mode');showLaunch();}if(openedList)list()}")
+    h=once(h,"function switchStudent(){const key=selectedKey();", "window.dnCumSwitchPage4=()=>switchStudent();function switchStudent(){const key=selectedKey();")
+    h=once(h,"function load(){busy=true;convert();let data=null;", "function load(){busy=true;convert();tbody.querySelectorAll('select').forEach(s=>s.value='');let data=null;")
+    h=once(h,"function picker(){if(document.getElementById('gyanadaStudentPicker'))return;", "window.dnCumFillSelected=()=>{const st=window.gyCumCurrentStudent;if(!st?.id)return;let info={};try{info=JSON.parse(localStorage.getItem('gyanadaCCESchoolInfo')||'{}')}catch(e){}fill(st,info);};function picker(){if(document.getElementById('gyanadaStudentPicker'))return;")
+    # Prevent a delayed old manual-save restore from overwriting the canonical values or another pupil.
+    h=once(h,"document.addEventListener('change',e=>{if(e.target?.id==='gyanadaStudentSelect')setTimeout(restore,600)});\nwindow.addEventListener('message',e=>{if(e.data?.type==='GYANADA_STUDENT_DATA')setTimeout(restore,1200)});\nsetTimeout(()=>{position();restore()},1500);", "window.addEventListener('gyCumStudentOpened',()=>{position();dnCumRefresh();});\nsetTimeout(position,1500);")
+    # Only one active ID-based browser save. Preserve old manual-save data as a fallback when autosave is absent.
+    h=once(h,"const id=student&&(student.generalRegister||student.gr||student.id||student.name);\n return id?String(id)+'|'+name:(name||'default');", "const id=student?.id;\n return id?String(id)+'|'+name:'no-selection';")
+    h=once(h,"function save(){try{const key=prefix+studentKey();", "function save(){if(!window.gyCumCurrentStudent?.id)return;try{window.dnCumSaveCurrent?.();const key=prefix+studentKey();")
+    # Page7 attendance retains its original editable attribute for legacy index order.
+    h=once(h,"cell.textContent=values[col];cell.contentEditable='false';cell.dataset.gyPage7Auto='true';", "cell.textContent=values[col];cell.setAttribute('inert','');cell.dataset.gyPage7Auto='true';")
+    h=once(h,"const student=snapshot.students?.[Number(select.value)];if(!student)return;", "const selected=window.gyCumCurrentStudent;const student=snapshot.students?.find(s=>s.id===selected?.id);if(!student)return;")
+    # Re-sync synchronously before PDF, and on view entry / focus / relevant message.
+    h=once(h,'function gyCumNativePrint(all){window.dnCumAadhaarBlank?.();','function gyCumNativePrint(all){window.dnCumAadhaarBlank?.();window.dnCumRefresh?.();')
+    h+='''\n<script id="dn-cum-cce-refresh-events">(function(){function sync(){try{dnCumRefresh()}catch(e){console.warn('CCE cumulative sync',e)}}window.addEventListener('gyCumStudentOpened',sync);window.addEventListener('focus',sync);window.addEventListener('beforeprint',sync);window.addEventListener('message',e=>{if(e.source===parent&&['GYANADA_STUDENT_DATA','GYANADA_CCE_SYNC'].includes(e.data?.type))setTimeout(sync,100)});})();</script>'''
+    return h
+
+def dn_final_shell(s):
+    m=list(re.finditer(r'(<script\b[^>]*\bid="dn-payload"[^>]*>)([A-Za-z0-9+/=]+)(</script>)',s))
+    if len(m)!=1:raise SystemExit('STOP: account isolation shell missing')
+    m=m[0];payload=base64.b64decode(m[2],validate=True).decode()
+    for name,fn in [('cceFrame',dn_cce_final),('classFrame',dn_class_final),('cumulativeFrame',dn_cum_final)]:
+        ms=list(re.finditer(r'(\b'+name+r':\s*")([A-Za-z0-9+/=]+)(")',payload))
+        if len(ms)!=1:raise SystemExit('STOP: module missing or duplicated: '+name)
+        x=ms[0];old=base64.b64decode(x[2],validate=True).decode()
+        if hashlib.sha256(old.encode()).hexdigest()!=DN_FINAL_HASHES[name]:raise SystemExit('STOP: reviewed source changed: '+name)
+        new=fn(old);payload=payload[:x.start(2)]+base64.b64encode(new.encode()).decode()+payload[x.end(2):];print('Combined CCE repair:',name,hashlib.sha256(new.encode()).hexdigest())
+    return s[:m.start(2)]+base64.b64encode(payload.encode()).decode()+s[m.end(2):]
+
+output=dn_final_shell(output)
 p.write_text(output);c.write_text(cloud)
 print('Cloud script content version:', version)
 print('Account isolation candidate built; browser testing required')
