@@ -1,0 +1,270 @@
+name: Test DNYANADA Combined Security and CCE (No Deploy)
+'on':
+  workflow_dispatch: null
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+    - name: Prepare teacher website and verify CCE repair
+      run: |
+        set -euo pipefail
+        mkdir -p www
+        cat \
+          part1_CCE_Marks_Web_Print_Fix.txt \
+          part2_CCE_Marks_Web_Print_Fix.txt \
+          part3_CCE_Marks_Web_Print_Fix.txt \
+          part4_CCE_Marks_Web_Print_Fix.txt \
+          > www/index.html
+
+        python3 dnyanada_login_cloud_fix.py
+        python3 - <<'GATEPATCH'
+        from pathlib import Path
+        p=Path('dnyanada_login_gate.js')
+        s=p.read_text(encoding='utf-8')
+        for old,new in [('  function expiryValid(v) {\n    if (!v) return false;\n\n    let d;\n\n    if (typeof v.toDate === "function") {\n      d = v.toDate();\n    } else if (typeof v === "string") {\n      const m = v.trim().match(\n        /^(\\d{1,2})[/-](\\d{1,2})[/-](\\d{4})$/\n      );\n\n      d = m\n        ? new Date(+m[3], +m[2] - 1, +m[1], 23, 59, 59)\n        : new Date(v);\n    } else {\n      d = new Date(v);\n    }\n\n    return !isNaN(d.getTime()) &&\n           d.getTime() >= Date.now();\n  }\n\n', '  // Match the timestamp schema required by the published Firestore backup rules.\n  function membershipMillis(v) {\n    if (!v || typeof v.toMillis !== "function") return NaN;\n    const ms = v.toMillis();\n    return Number.isFinite(ms) ? ms : NaN;\n  }\n\n  function checkMembership(td, sd, now = Date.now()) {\n    if (td.status !== "active") {\n      throw Error("शिक्षक खाते सक्रिय नाही.");\n    }\n    if (sd.status !== "active") {\n      throw Error("सदस्यत्व सक्रिय नाही.");\n    }\n    const start = membershipMillis(sd.startDate);\n    const expiry = membershipMillis(sd.expiryDate);\n    if (!Number.isFinite(start) || !Number.isFinite(expiry) || start > expiry) {\n      throw Error("सदस्यत्वाच्या तारखा अवैध आहेत. प्रशासकाशी संपर्क साधा.");\n    }\n    if (now < start) throw Error("सदस्यत्व अद्याप सुरू झालेले नाही.");\n    if (now > expiry) throw Error("सदस्यत्वाची मुदत संपली आहे.");\n  }\n\n'), ('    const [t, s] = await timeout(Promise.all([\n      db.collection("teachers").doc(user.uid).get(),\n      db.collection("subscriptions").doc(user.uid).get()\n    ]), 15000);\n\n', '    const [t, s] = await timeout(Promise.all([\n      db.collection("teachers").doc(user.uid).get({source:"server"}),\n      db.collection("subscriptions").doc(user.uid).get({source:"server"})\n    ]), 15000);\n\n'), ('    const td = t.data();\n    const sd = s.data();\n\n    if (field(td, "status") &&\n        norm(field(td, "status")) !== "active") {\n      throw Error("शिक्षक खाते सक्रिय नाही.");\n    }\n\n    if (norm(field(sd, "status")) !== "active") {\n      throw Error("सदस्यत्व सक्रिय नाही.");\n    }\n\n    if (!expiryValid(field(sd, "expiryDate"))) {\n      throw Error(\n        "सदस्यत्वाची मुदत संपली किंवा तारीख अवैध आहे."\n      );\n    }\n\n', '    const td = t.data();\n    const sd = s.data();\n\n    checkMembership(td, sd);\n\n')]:
+            if s.count(old)==1:
+                s=s.replace(old,new,1)
+            elif s.count(new)!=1:
+                raise SystemExit('STOP: login gate mismatch; source must be reviewed')
+        p.write_text(s,encoding='utf-8')
+        print('Membership gate updated in runner only')
+        GATEPATCH
+        node --check dnyanada_login_gate.js
+        python3 dnyanada_inject_gate.py
+        python3 dnyanada_sanchayi_11page_print_fix.py
+        python3 dnyanada_sanchayi_print_v2.py
+
+        python3 - <<'PY'
+        from pathlib import Path
+        p = Path('www/index.html')
+        s = p.read_text(encoding='utf-8')
+        closing = '</body>'
+        pos = s.lower().rfind(closing)
+        if pos < 0:
+            raise SystemExit('STOP: HTML closing body tag missing')
+        tag = '<script src="/dnyanada_cloud_backup.js"></script>\n'
+        if tag not in s:
+            s = s[:pos] + tag + s[pos:]
+        p.write_text(s, encoding='utf-8')
+        if not s.lstrip().lower().startswith('<!doctype html>'):
+            raise SystemExit('STOP: HTML document header missing')
+        if s.lower().count('</body>') < 1 or not s.rstrip().lower().endswith('</html>'):
+            raise SystemExit('STOP: HTML document ending invalid')
+        print('Teacher HTML assembled and guarded injection completed')
+        PY
+
+        python3 dnyanada_account_isolation.py
+
+        cp dnyanada_cloud_backup.js www/dnyanada_cloud_backup.js
+        python3 - <<'VERIFY'
+        from pathlib import Path
+        import base64,re
+        s=Path('www/index.html').read_text(encoding='utf-8')
+        assert 'function checkMembership(' in s and 'source:"server"' in s, 'Membership gate missing'
+        assert 'dn_uid_v1:' in s and 'window.__dnOpen' in s, 'Account scope missing'
+        m=re.findall(r'<script\b[^>]*\bid="dn-payload"[^>]*>([A-Za-z0-9+/=]+)</script>',s)
+        assert len(m)==1
+        payload=base64.b64decode(m[0],validate=True).decode()
+        for name in ('cceFrame','classFrame'):
+            parts=re.findall(r'\b'+name+r':\s*"([A-Za-z0-9+/=]+)"',payload)
+            assert len(parts)==1, name
+            h=base64.b64decode(parts[0],validate=True).decode()
+            assert 'DN_CCE_STABLE_NOTES_20261126' in h, 'CCE repair missing: '+name
+        assert 'scopedBackupV2' in Path('www/dnyanada_cloud_backup.js').read_text()
+        print('Website candidate: membership, UID isolation, CCE stable notes and cloud scope present')
+        VERIFY
+
+        mkdir -p teacher-site
+        cp www/index.html teacher-site/index.html
+        cp www/dnyanada_cloud_backup.js teacher-site/dnyanada_cloud_backup.js
+        cp manifest.json teacher-site/manifest.json
+        python3 -m pip install Pillow
+
+        python3 - <<'PY'
+        from PIL import Image
+        from pathlib import Path
+        img = Image.open("logo.png").convert("RGBA")
+        for size in (192, 512):
+            img.resize((size, size), Image.Resampling.LANCZOS).save(f"teacher-site/icon-{size}.png")
+        p = Path("teacher-site/index.html")
+        s = p.read_text(encoding="utf-8")
+        tag = '<link rel="manifest" href="/manifest.json">'
+        if tag not in s:
+            pos = s.lower().find("</head>")
+            if pos < 0:
+                raise SystemExit("STOP: head tag missing")
+            s = s[:pos] + tag + "\n" + s[pos:]
+        p.write_text(s, encoding="utf-8")
+        print("PWA setup completed")
+        PY
+    - uses: actions/upload-artifact@v4
+      with:
+        name: DNYANADA-Teacher-Security-Candidate
+        path: teacher-site/
+        if-no-files-found: error
+        retention-days: 3
+    - name: Prepare Admin Console registration alternative (Spark)
+      run: |
+        set -euo pipefail
+        python3 dnyanada_admin_dashboard_fix.py
+        python3 - <<'ADMINPATCH'
+        """Run AFTER dnyanada_admin_dashboard_fix.py on a fresh checkout.
+        Spark alternative: Firebase Console creates Auth user; existing Admin Panel registers UID.
+        No credentials in source, no changes to existing records, no client-side sign-up.
+        """
+        from pathlib import Path
+        import re
+
+
+        def transform(s):
+            def replace(old, new):
+                nonlocal s
+                if s.count(old) != 1:
+                    raise SystemExit('STOP: Admin source mismatch: '+old[:80])
+                s = s.replace(old, new, 1)
+            for marker in ('id="countTotal"', 'annualFee=222', 'id="newEmail"', 'mustChangePassword:true'):
+                if marker not in s:
+                    raise SystemExit('STOP: Run the existing dashboard patch first: '+marker)
+            start = s.index('<section class="editor"><h2>नवीन शिक्षक लॉगिन तयार करा</h2>')
+            end = s.index('</section>', start)+len('</section>')
+            if 'id="newPassword"' not in s[start:end] or 'id="addTeacher"' not in s[start:end]:
+                raise SystemExit('STOP: Account form not recognized')
+            s = s[:start]+'''<section class="editor"><h2>नवीन शिक्षक नोंदणी — सुरक्षित Console पद्धत</h2>
+        <p class="muted">प्रथम अधिकृत Firebase Console मध्ये Authentication → Users → Add user वापरून शिक्षकाचे खाते तयार करा. मजबूत, यादृच्छिक प्रारंभिक पासवर्ड शिक्षकाला देऊ नका किंवा येथे साठवू नका. त्या खात्याचा UID व ईमेल Console मधून तपासून खाली भरा. शिक्षक स्वतःच्या ईमेलवरील पासवर्ड रीसेट लिंक वापरून आपला पासवर्ड ठरवेल.</p>
+        <p><a href="https://console.firebase.google.com/project/dnyanada-app-17c4a/authentication/users" target="_blank" rel="noopener noreferrer">Firebase Authentication Users उघडा</a></p>
+        <label for="newUid">Firebase Authentication UID</label><input id="newUid" autocomplete="off" maxlength="128" required>
+        <label for="newEmail">शिक्षकाचा ईमेल (लॉगिन आयडी)</label><input id="newEmail" type="email" autocomplete="off" required>
+        <label for="newName">शिक्षकाचे नाव</label><input id="newName" maxlength="120" required>
+        <label for="newMobile">मोबाईल (ऐच्छिक)</label><input id="newMobile" type="tel" inputmode="numeric" maxlength="10">
+        <button id="addTeacher">शिक्षकाची नोंद करा (निष्क्रिय)</button>
+        <p class="muted">नोंद यशस्वी झाल्यावर पासवर्ड रीसेट ईमेलची विनंती होईल. शिक्षकाला प्रत्यक्ष ईमेल प्राप्त झाला आहे का तपासा. पेमेंट पडताळल्यानंतरच सदस्यत्व व खाते सक्रिय करा. या पॅनेलमधून Authentication खाते तयार होत नाही.</p></section>'''+s[end:]
+            fn = r'''async function addTeacher(){
+         if(!authorized||!auth.currentUser)return;
+         const adminUid=auth.currentUser.uid;
+         const uid=$('newUid').value.trim(),email=$('newEmail').value.trim().toLowerCase(),name=$('newName').value.trim(),mobile=$('newMobile').value.trim();
+         if(!/^[A-Za-z0-9_-]{1,128}$/.test(uid)||uid===adminUid){msg('Console मधील योग्य शिक्षक UID भरा.');return;}
+         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){msg('योग्य ईमेल भरा.');return;}
+         if(!name||name.length>120){msg('शिक्षकाचे योग्य नाव भरा.');return;}
+         if(mobile&&!/^[6-9]\d{9}$/.test(mobile)){msg('योग्य 10 अंकी मोबाईल नंबर भरा.');return;}
+         if(!confirm('UID: '+uid+'\nईमेल: '+email+'\nही दोन्ही मूल्ये Firebase Authentication Console मधील एकाच शिक्षकाच्या खात्याची आहेत आणि प्रारंभिक पासवर्ड शेअर केलेला नाही, याची खात्री आहे का?'))return;
+         const btn=$('addTeacher');btn.disabled=true;let registered=false;
+         try{
+          const ref=db.collection('teachers').doc(uid);
+          await db.runTransaction(async tx=>{
+           if(!authorized||auth.currentUser?.uid!==adminUid)throw Error('Admin खाते बदलले.');
+           const existing=await tx.get(ref);
+           if(existing.exists)throw Error('या UID ची नोंद आधीपासून आहे. ती बदललेली नाही.');
+           tx.set(ref,{name,mobile,email,status:'inactive',onboardingMode:'console-email-reset',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:adminUid});
+          });
+          registered=true;
+          $('newUid').value='';$('newEmail').value='';$('newName').value='';$('newMobile').value='';
+          if(!authorized||auth.currentUser?.uid!==adminUid)return;
+          try{
+           await auth.sendPasswordResetEmail(email);
+           msg('निष्क्रिय शिक्षक नोंद तयार झाली. पासवर्ड रीसेट ईमेलची विनंती झाली. शिक्षकाला ईमेल मिळाल्याची खात्री करा.');
+          }catch(e){msg('नोंद तयार झाली. ईमेल विनंती अयशस्वी: '+(e.code||e.message)+'; शिक्षकाने लॉगिनवर पासवर्ड विसरलात? वापरावे.');}
+          page=0;cursors=[null];await loadTeachers();
+         }catch(e){msg((registered?'नोंद तयार झाली; पुढील प्रक्रिया अयशस्वी: ':'नोंदणी अयशस्वी: ')+(e.code||e.message));}
+         finally{btn.disabled=false;}
+        }
+        '''
+            s, n = re.subn(r'async function addTeacher\(\)\{.*?(?=async function setTeacher\()',lambda _:fn,s,flags=re.S)
+            if n != 1: raise SystemExit('STOP: addTeacher block missing or duplicated')
+            s, n = re.subn(r'<section class="panel"><p class="muted">महत्त्वाचे:.*?</p></section>(?=</main>)',lambda _:'''<section class="panel"><p class="muted">सुरक्षा: Authentication खाते अधिकृत Firebase Console मधून तयार करा. ही आवृत्ती वापरकर्त्यांच्या सार्वजनिक sign-up बंद करण्याशी सुसंगत आहे; प्रत्यक्ष सेटिंग Firebase Console मध्ये स्वतंत्रपणे तपासा. नवीन शिक्षकाने ईमेल रीसेटद्वारे स्वतःचा पासवर्ड ठरवावा. जुन्या खात्यांसाठी पहिल्या लॉगिनला पासवर्ड बदलल्याचे सर्व्हरवर प्रमाणित करणारी व्यवस्था आणि APK ची अंतिम चाचणी स्वतंत्रपणे आवश्यक आहे. पासवर्ड किंवा गुप्त किल्ल्या येथे साठवू नका. Firebase Security Rules लागू राहतात.</p></section>''',s,flags=re.S)
+            if n!=1: raise SystemExit('STOP: safety notice not found')
+            for banned in ('createUserWithEmailAndPassword','id="newPassword"','dnyanada-teacher-creation'):
+                if banned in s: raise SystemExit('STOP: old account creation remains: '+banned)
+            for required in ('id="countTotal"','annualFee=222','async function setTeacher(','async function setSubscription(','पेमेंट इतिहास','id="newUid"'):
+                if required not in s: raise SystemExit('STOP: preserved control missing: '+required)
+            return s
+
+        if __name__ == '__main__':
+            p=Path('DNYANADA_Admin_Panel_Consolidated.html')
+            source=p.read_text(encoding='utf-8')
+            result=transform(source)
+            p.write_text(result,encoding='utf-8')
+            print('OK: Spark console-based registration candidate; public signup setting not changed')
+
+        ADMINPATCH
+        python3 - <<'ADMINJS'
+        from pathlib import Path
+        import re
+        s=Path('DNYANADA_Admin_Panel_Consolidated.html').read_text(encoding='utf-8')
+        for i,js in enumerate(re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)):
+            if js.strip(): Path(f'/tmp/dn-admin-{i}.js').write_text(js,encoding='utf-8')
+        ADMINJS
+        for script in /tmp/dn-admin-*.js; do node --check "$script"; done
+    - uses: actions/upload-artifact@v4
+      with:
+        name: DNYANADA-Admin-Spark-Candidate
+        path: DNYANADA_Admin_Panel_Consolidated.html
+        if-no-files-found: error
+        retention-days: 3
+    - name: Build isolated test APK (no production signing)
+      run: |
+        npm init -y
+        npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+        npx cap init "Dnyanada" "com.dnyanada.app" --web-dir www
+        npx cap add android
+
+        cat << 'GRADLEEOF' >> android/app/build.gradle
+        dependencies {
+            implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.22"))
+        }
+        GRADLEEOF
+
+        python3 -m pip install Pillow
+        python3 - << 'PYEOF'
+        import os, glob
+        from PIL import Image
+        logos = glob.glob("logo.*") + glob.glob("*.png") + glob.glob("*.jpg")
+        if logos:
+            img = Image.open(logos[0]).convert("RGBA")
+            sizes = {"mipmap-mdpi":48,"mipmap-hdpi":72,"mipmap-xhdpi":96,"mipmap-xxhdpi":144,"mipmap-xxxhdpi":192}
+            for folder, sz in sizes.items():
+                out_dir = f"android/app/src/main/res/{folder}"
+                os.makedirs(out_dir, exist_ok=True)
+                resized = img.resize((sz, sz), Image.LANCZOS)
+                resized.save(f"{out_dir}/ic_launcher.png")
+                resized.save(f"{out_dir}/ic_launcher_round.png")
+                resized.save(f"{out_dir}/ic_launcher_foreground.png")
+        PYEOF
+
+        test -s MainActivity.java || { echo "Missing MainActivity.java"; exit 1; }
+        mkdir -p android/app/src/main/java/com/dnyanada/app
+        cp MainActivity.java android/app/src/main/java/com/dnyanada/app/MainActivity.java
+
+        cat >> android/app/build.gradle <<'TESTSUFFIX'
+        android {
+            buildTypes {
+                debug {
+                    applicationIdSuffix ".securitytest"
+                    versionNameSuffix "-security-test"
+                }
+            }
+        }
+        TESTSUFFIX
+        npx cap sync android
+        chmod +x android/gradlew
+
+        cd android
+        ./gradlew assembleDebug
+    - uses: actions/upload-artifact@v4
+      with:
+        name: DNYANADA-Isolated-Security-Test-APK
+        path: android/app/build/outputs/apk/debug/app-debug.apk
+        if-no-files-found: error
+        retention-days: 3
