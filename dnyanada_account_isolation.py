@@ -468,6 +468,159 @@ output = replace(output, '<script src="/dnyanada_cloud_backup.js"></script>', '<
 policy_js = '(function(){\n\'use strict\';\nconst pages={\n terms:{title:\'ॲप वापराच्या अटी\',body:`<p>ज्ञानदा Smart Teacher App हे शिक्षकांच्या शालेय नोंदी व दैनंदिन कामकाजासाठी सहाय्यक साधन आहे.</p>\n<h3>१. सदस्यत्व व खाते</h3><p>सध्याचे वार्षिक सदस्यत्व शुल्क ₹२२२ आहे. शैक्षणिक वर्षाचा सामान्य कालावधी १ जून ते ३१ मे आहे; आपल्या खात्यात दर्शविलेली सक्रियता व अंतिम तारीख लागू राहील. शुल्क, नूतनीकरण किंवा परताव्याबाबत पैसे भरण्यापूर्वी अधिकृत प्रशासकाशी खात्री करा. खाते निष्क्रिय किंवा सदस्यत्व संपल्यास ऑनलाइन प्रवेश बंद होऊ शकतो.</p>\n<h3>२. अधिकृत वापर</h3><p>आपले लॉगिन व पासवर्ड गोपनीय ठेवा. दुसऱ्या व्यक्तीचे खाते वापरू नका किंवा अनधिकृत प्रवेश करू नका. शाळेच्या परवानगीने आणि आवश्यक तेवढीच विद्यार्थी माहिती नोंदवा. तयार केलेले निकाल, दाखले, अहवाल व प्रिंट अधिकृत वापरापूर्वी तपासण्याची जबाबदारी शिक्षकाची आहे.</p>\n<h3>३. बॅकअप व डेटा परत आणणे</h3><p>नोंदी प्रथम उपकरणात जतन होतात. इंटरनेट, सक्रिय सदस्यत्व आणि क्लाऊडची उपलब्धता असल्यास बॅकअप होतो. ॲप बंद करण्यापूर्वी महत्त्वाच्या बदलांचा बॅकअप यशस्वी झाल्याची पुष्टी तपासा. नवीन उपकरणावर अद्ययावत माहिती नसल्यास डेटा परत आणा. एकाच खात्यात दोन उपकरणांवर वेगवेगळे बदल केल्यास थेट बॅकअप किंवा Restore करू नका; आधी नोंदी तपासा व सहाय्यता घ्या. स्वतंत्र अधिकृत प्रतीही सुरक्षित ठेवा.</p>\n<h3>४. सेवा व मर्यादा</h3><p>इंटरनेट, ब्राउझर, उपकरण, Firebase कोटा किंवा तांत्रिक अडचणींमुळे सेवा तात्पुरती प्रभावित होऊ शकते. बाह्य पाठ्यपुस्तक संकेतस्थळांच्या उपलब्धतेवर त्यांचे स्वतःचे नियम लागू होतात. ॲप हे अधिकृत शासकीय नोंदवहीचे पर्यायी साधन असल्याचा दावा करत नाही.</p>\n<h3>५. सहाय्यता व बदल</h3><p>तांत्रिक समस्या, सदस्यत्व किंवा अटींविषयी प्रश्न असल्यास ॲपमधील तांत्रिक सहाय्यता विभागातून अधिकृत प्रशासकाशी संपर्क साधा. अटींमध्ये बदल झाल्यास अद्ययावत मजकूर येथे उपलब्ध केला जाईल.</p>`},\n privacy:{title:\'गोपनीयता धोरण\',body:`<p>ज्ञानदा Smart Teacher App मध्ये शालेय नोंदींच्या व्यवस्थापनासाठी आवश्यक माहिती हाताळली जाते. अनावश्यक वैयक्तिक माहिती भरू नका.</p>\n<h3>१. कोणती माहिती हाताळली जाते?</h3><p>शिक्षकाचे नाव, ईमेल, ऐच्छिक मोबाईल क्रमांक, खाते व सदस्यत्व माहिती; शिक्षकाने भरलेली विद्यार्थी नावे, जन्मतारीख, संपर्क, फोटो, उपस्थिती, गुण, शैक्षणिक नोंदी, शाळा व इतर संबंधित नोंदी. काही टॅबमध्ये भरल्यास प्रवर्ग, आरोग्य किंवा इतर संवेदनशील माहितीही असू शकते. पासवर्डची पडताळणी Firebase Authentication द्वारे होते.</p>\n<h3>२. माहितीचा उद्देश</h3><p>शिक्षकाचा प्रवेश, सदस्यत्व व्यवस्थापन, शालेय नोंदी, अहवाल, प्रिंट, बॅकअप, पुनर्प्राप्ती आणि तांत्रिक सहाय्यता यासाठी माहिती वापरली जाते. विद्यार्थी माहिती जाहिरात किंवा असंबंधित कामासाठी भरू नये.</p>\n<h3>३. माहिती कुठे जतन होते?</h3><p>नोंदी उपकरणाच्या ब्राउझरमधील स्थानिक स्टोरेजमध्ये राहू शकतात. क्लाऊड बॅकअप Firebase Cloud Firestore मध्ये खात्याच्या स्वतंत्र UID नुसार जतन होतो. लॉगिन व होस्टिंगसाठी Google Firebase सेवा वापरली जाते. संबंधित सेवांबद्दल <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer">Firebase गोपनीयता माहिती</a> पहा. बाह्य पाठ्यपुस्तक संकेतस्थळांना त्यांच्या स्वतंत्र धोरणांचा आधार असतो.</p>\n<h3>४. सुरक्षा व प्रवेश</h3><p>लॉगिन, खातेवार स्टोरेज आणि Firebase प्रवेश नियम वापरले जातात. अधिकृत प्रशासकाला खाते व सदस्यत्व व्यवस्थापनासाठी आवश्यक प्रवेश असतो. कोणतीही प्रणाली पूर्णपणे त्रुटीमुक्त नसते. सामायिक उपकरणावर काम झाल्यावर लॉगआउट करा आणि पासवर्ड शेअर करू नका. ब्राउझर डेटा हटवण्यापूर्वी यशस्वी बॅकअप तपासा.</p>\n<h3>५. विद्यार्थ्यांची गोपनीयता</h3><p>विद्यार्थ्यांची माहिती नोंदवण्यापूर्वी शाळेची अधिकृत परवानगी व लागू असलेली पालक/पालकप्रतिनिधीची संमती किंवा इतर आवश्यक आधार सुनिश्चित करा. आवश्यक तेवढीच माहिती वापरा. संवेदनशील नोंदी किंवा विद्यार्थी अहवाल अनधिकृत व्यक्तींना पाठवू नका.</p>\n<h3>६. जतन कालावधी व हटवण्याची विनंती</h3><p>स्थानिक नोंदी ब्राउझरमध्ये आणि क्लाऊड नोंदी संबंधित खात्यात राहू शकतात. नवीन बॅकअप व्यवस्थेत नवीनतम तीन व्यवस्थापित आवृत्त्या ठेवण्याचे नियोजन आहे; पात्र जुन्या आवृत्त्या पडताळणीनंतर हटवल्या जाऊ शकतात. पूर्वीच्या प्रती वेगळ्या राहू शकतात. खाते निष्क्रिय केल्याने माहिती आपोआप हटत नाही. माहिती पाहणे, दुरुस्ती, हटवणे किंवा खाते बंद करण्याच्या विनंतीसाठी तांत्रिक सहाय्यता विभागातून अधिकृत प्रशासकाशी संपर्क साधा. विनंतीची ओळख, शाळेची अधिकृतता व लागू नोंद-जतन आवश्यकता तपासल्या जातील.</p>\n<h3>७. गोपनीयतेसंबंधी संपर्क</h3><p>माहितीच्या वापराबद्दल प्रश्न किंवा सुरक्षा समस्या असल्यास ॲपमधील तांत्रिक सहाय्यता विभाग वापरा. या धोरणातील अद्ययावत माहिती येथे उपलब्ध केली जाईल.</p>`}\n};\nfunction install(){\n if(document.getElementById(\'dn-policy-links\'))return;\n const css=document.createElement(\'style\');css.id=\'dn-policy-style\';css.textContent=`\n #dn-policy-links{position:fixed;bottom:calc(8px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:2147483001;pointer-events:none;display:flex;justify-content:space-between;align-items:center;padding:0 8px;box-sizing:border-box;min-height:40px}\n #dn-policy-links[hidden]{display:none!important}\n #dn-policy-links button{pointer-events:auto;background:#fff;color:#125b92;border:1px solid #125b92;border-radius:999px;max-width:var(--dn-policy-width,90px);min-height:36px;padding:5px 8px;box-sizing:border-box;font:700 12px/1.25 system-ui,sans-serif;cursor:pointer;overflow-wrap:normal;white-space:normal;box-shadow:0 1px 5px #0002}\n #dn-policy-dialog{box-sizing:border-box;width:min(94vw,620px);max-width:94vw;max-height:86vh;max-height:86dvh;border:1px solid #125b92;border-radius:14px;padding:0;background:#fff;color:#173047;font:15px/1.65 system-ui,sans-serif;overflow:auto;z-index:2147483646}\n #dn-policy-dialog::backdrop{background:#0008}\n #dn-policy-dialog header{position:sticky;top:0;background:#125b92;color:white;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;z-index:1}\n #dn-policy-dialog h2{font-size:18px;margin:0;color:white}\n #dn-policy-dialog header button{background:#fff;color:#125b92;border:0;border-radius:8px;min-width:38px;min-height:38px;font-size:24px;cursor:pointer}\n #dn-policy-content{padding:12px 16px 20px;overflow-wrap:anywhere}\n #dn-policy-content h3{font-size:16px;color:#125b92;margin:16px 0 5px}\n #dn-policy-content p{margin:0 0 10px}\n html.dnyanada-login-locked #dn-policy-links{display:none!important}\n @media print{#dn-policy-links,#dn-policy-dialog{display:none!important}}\n `;document.head.appendChild(css);\n const links=document.createElement(\'div\');links.id=\'dn-policy-links\';links.hidden=true;\n const dialog=document.createElement(\'dialog\');dialog.id=\'dn-policy-dialog\';dialog.setAttribute(\'aria-labelledby\',\'dn-policy-heading\');\n dialog.innerHTML=\'<header><h2 id="dn-policy-heading"></h2><button type="button" aria-label="बंद करा">×</button></header><div id="dn-policy-content"></div>\';\n dialog.querySelector(\'button\').addEventListener(\'click\',()=>dialog.close());\n for(const [key,label] of [[\'terms\',\'वापराच्या अटी\'],[\'privacy\',\'गोपनीयता धोरण\']]){\n  const b=document.createElement(\'button\');b.type=\'button\';b.textContent=label;b.addEventListener(\'click\',()=>{\n   if(links.hidden)return;\n   dialog.querySelector(\'h2\').textContent=pages[key].title;\n   dialog.querySelector(\'#dn-policy-content\').innerHTML=pages[key].body;\n   if(!dialog.open)dialog.showModal();dialog.scrollTop=0;\n  });links.appendChild(b);\n }\n document.body.append(links,dialog);\n let frame=null,observedBody=null;const bodyObserver=new MutationObserver(refresh);\n function refresh(){\n  const next=document.getElementById(\'dn-app\');\n  if(next!==frame){if(frame)frame.removeEventListener(\'load\',refresh);frame=next;if(frame)frame.addEventListener(\'load\',refresh);}\n  let body=null;try{body=frame?.contentDocument?.body||null;}catch(_){}\n  if(body!==observedBody){bodyObserver.disconnect();observedBody=body;if(body)bodyObserver.observe(body,{attributes:true,attributeFilter:[\'class\']});}\n  const cloud=document.querySelector(\'#dny-cloud-tools > button\');\n  const r=cloud?.getBoundingClientRect();\n  const available=r?Math.floor(Math.min(r.left,innerWidth-r.right)-16):0;\n  const dashboard=!!body&&!!body.querySelector(\'.dashboard-home\')&&!body.classList.contains(\'app-open\');\n  const visible=dashboard&&!!window.__dnAccount&&!document.documentElement.classList.contains(\'dnyanada-login-locked\')&&available>=44;\n  links.style.setProperty(\'--dn-policy-width\',Math.max(44,Math.min(115,available))+\'px\');\n  links.hidden=!visible;if(!visible&&dialog.open)dialog.close();\n }\n new MutationObserver(refresh).observe(document.body,{childList:true});\n new MutationObserver(refresh).observe(document.documentElement,{attributes:true,attributeFilter:[\'class\']});\n window.addEventListener(\'resize\',refresh);refresh();\n}\nif(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',install);else install();\n})();\n'
 assert output.endswith('</body></html>')
 output=output[:-len('</body></html>')]+'<script id="dn-policy-script">'+policy_js+'</script></body></html>'
+# CCE stable student notes patch — after the existing verified account isolation build.
+from pathlib import Path
+import base64, re, hashlib, json
+
+# Apply only after dnyanada_account_isolation.py. No Firebase calls or data writes at build time.
+EXPECTED={
+ 'cceFrame':'caf921ba731fb5333fb4f77ace10570129f4d58fc72bccf093fe3e77377b88a8',
+ 'classFrame':'abe2b3016eab11e289b281bcf3a9d2d54be9a19222733492f1aa525cbab2a025',
+}
+MARK='DN_CCE_STABLE_NOTES_20261126'
+STORE='dnCCEStudentNotesV3'
+
+def once(s,a,b):
+    if s.count(a)!=1: raise SystemExit('STOP: CCE anchor mismatch: '+a[:100])
+    return s.replace(a,b,1)
+
+def block(s,a,b,new):
+    if s.count(a)!=1: raise SystemExit('STOP: CCE block start: '+a)
+    start=s.index(a); end=s.index(b,start+len(a))
+    return s[:start]+new+'\n'+s[end:]
+
+CORE=r'''// DN_CCE_STABLE_NOTES_20261126 — account-scoped, stable student IDs, academic year and term.
+const dnNoteKey='dnCCEStudentNotesV3';
+function dnNotesAccess(){if(!top.__dnAccount?.uid)throw Error('शिक्षक खाते पडताळणी आवश्यक आहे.');return localStorage;}
+function dnNotesMaster(){try{const raw=dnNotesAccess().getItem('independentStudentManager_v1');if(!raw)return [];const data=JSON.parse(raw);return Array.isArray(data.students)?data.students.filter(x=>x&&typeof x.id==='string'&&x.id&&String(x.name||'').trim()):[]}catch(e){return []}}
+function dnNotesById(id){const matches=dnNotesMaster().filter(s=>s.id===id);return matches.length===1?matches[0]:null;}
+function dnNotesYear(){return String(document.getElementById('setupYear')?.value||'2026-27').trim();}
+function dnNotesRecordKey(id,term,year=dnNotesYear()){return JSON.stringify([String(id),String(year),Number(term)===2?2:1]);}
+function dnNotesDb(){const raw=dnNotesAccess().getItem(dnNoteKey);if(!raw)return {version:3,records:{},claims:{}};const d=JSON.parse(raw);if(!d||d.version!==3||!d.records||typeof d.records!=='object'||Array.isArray(d.records)||!d.claims||typeof d.claims!=='object'||Array.isArray(d.claims))throw Error('वर्णनात्मक नोंदींची रचना अवैध आहे.');return d;}
+function dnNotesRead(id,term,year=dnNotesYear()){if(!dnNotesById(id))return [];try{const rows=dnNotesDb().records[dnNotesRecordKey(id,term,year)];return Array.isArray(rows)?rows:[]}catch(e){console.warn('CCE notes read',e);return []}}
+function dnNotesWrite(id,term,year,rows){if(!dnNotesById(id)||year!==dnNotesYear())throw Error('विद्यार्थी किंवा शैक्षणिक वर्ष बदलले आहे. पुन्हा निवडा.');const d=dnNotesDb();d.records[dnNotesRecordKey(id,term,year)]=rows.map(x=>({subject:String(x.subject||''),text:String(x.text||'')}));dnNotesAccess().setItem(dnNoteKey,JSON.stringify(d));}
+function dnNotesOldRosterId(roll){const st=roster[Number(roll)-1];if(!st||!String(st.name||'').trim())return '';const grade=String(document.getElementById('gyResultClass')?.value||document.getElementById('setupClass')?.value||'');const found=dnNotesMaster().filter(x=>String(x.name||'').trim()===String(st.name).trim()&&(!grade||gyGrade(x.className||x.class||x.grade)===grade));return found.length===1?found[0].id:'';}
+function dnNotesProgressId(roll){const id=window.dnCCEProgressStudentId;if(id)return dnNotesById(id)?id:'';return dnNotesOldRosterId(roll);}
+function dnNotesRefresh(){try{if(typeof syncProgressNoteFields==='function')syncProgressNoteFields();if(typeof window.gySyncProgressGradesAndNotes==='function')window.gySyncProgressGradesAndNotes();}catch(e){console.warn('CCE notes refresh',e)}}
+// Legacy roll-number data is never assigned automatically. Explicit, one-time recovery per legacy record.
+function dnNotesRecover(id,term,year){
+ const student=dnNotesById(id);if(!student||year!==dnNotesYear())throw Error('विद्यार्थी पुन्हा निवडा.');
+ const d=dnNotesDb(), target=dnNotesRecordKey(id,term,year);if(Object.prototype.hasOwnProperty.call(d.records,target))throw Error('या विद्यार्थी-सत्राच्या नवीन नोंदी आहेत. जुन्या नोंदी आपोआप मिसळणार नाहीत.');
+ const raw=dnNotesAccess().getItem('gyanadaCCEDescriptiveNotes');if(!raw)throw Error('या खात्यात जुनी अनुक्रमांकानुसार नोंद उपलब्ध नाही.');
+ const old=JSON.parse(raw);const roll=prompt('जुना अनुक्रमांक लिहा. विद्यार्थी यादी बदलली असल्यास जुना क्रमांक वेगळा असू शकतो.');if(roll===null)return false;if(!/^\d{1,6}$/.test(roll.trim())||Number(roll)<1)throw Error('योग्य जुना अनुक्रमांक लिहा.');
+ const canonical=String(Number(roll))+'_'+(Number(term)===2?2:1);const rows=old[canonical]||(Number(term)===1?old[String(Number(roll))]:null);
+ if(!Array.isArray(rows)||!rows.length)throw Error('या जुन्या अनुक्रमांक व सत्रासाठी नोंदी नाहीत.');
+ if(Object.prototype.hasOwnProperty.call(d.claims,canonical))throw Error('या जुन्या नोंदींचा वापर आधीच झाला आहे.');
+ const clean=rows.filter(x=>x&&String(x.text||x.note||'').trim()).map(x=>({subject:String(x.subject||x.category||x.group||''),text:String(x.text||x.note||'')}));if(!clean.length)throw Error('जुन्या नोंदी रिकाम्या आहेत.');
+ if(!confirm('निवडलेला विद्यार्थी: '+student.name+'\nसत्र: '+term+'\nजुन्या नोंदी:\n'+clean.map(x=>x.subject+': '+x.text).join('\n')+'\n\nया सर्व नोंदी याच विद्यार्थ्याच्या असल्याची खात्री आहे का? खात्री नसेल तर रद्द करा.'))return false;
+ if(!dnNotesById(id)||year!==dnNotesYear())throw Error('विद्यार्थी किंवा वर्ष बदलले.');
+ const latest=dnNotesDb();if(Object.prototype.hasOwnProperty.call(latest.records,target)||Object.prototype.hasOwnProperty.call(latest.claims,canonical))throw Error('नोंदी बदलल्या आहेत. पुन्हा तपासा.');
+ latest.records[target]=clean;latest.claims[canonical]=target;dnNotesAccess().setItem(dnNoteKey,JSON.stringify(latest));return true;
+}
+'''
+
+DELETE=r'''// DN_CCE_STABLE_NOTES_20261126 — remove only the deleted student's stable records.
+function dnCCEDeleteStudentNotes(id){
+ try{
+  if(!top.__dnAccount?.uid)throw Error('Account not approved');
+  const key='dnCCEStudentNotesV3',raw=localStorage.getItem(key);if(!raw)return;
+  const d=JSON.parse(raw);if(!d||d.version!==3||!d.records||typeof d.records!=='object'||Array.isArray(d.records))throw Error('Invalid notes data');
+  let changed=false;for(const k of Object.keys(d.records)){let parts;try{parts=JSON.parse(k)}catch(e){continue}if(Array.isArray(parts)&&parts[0]===String(id)){delete d.records[k];changed=true}}
+  // Keep legacy recovery claims to prevent reassigning a deleted student's old notes.
+  if(changed)localStorage.setItem(key,JSON.stringify(d));
+ }catch(e){console.warn('CCE notes cleanup:',e);alert('विद्यार्थी यादीतून काढला आहे. वर्णनात्मक नोंदींची स्वच्छता पूर्ण झाली नाही; त्या प्रगतीपत्रकात वापरल्या जाणार नाहीत.');}
+}
+'''
+
+def patch_class(h):
+    h=once(h,'function deleteStudent(id){',DELETE+'\nfunction deleteStudent(id){')
+    h=once(h,'data.students=data.students.filter(s=>s.id!==id);\n persist();renderStudents();','data.students=data.students.filter(s=>s.id!==id);\n persist();if(st)dnCCEDeleteStudentNotes(id);renderStudents();')
+    return h
+
+def patch_cce(h):
+    h=once(h,'let chosenDescriptiveNotes = {};',CORE+'\nlet chosenDescriptiveNotes = {};')
+    h=block(h,'function notesStudentKey(){','function updateNotesHeader(){',r'''function notesStudentKey(){const id=dnNotesOldRosterId(document.getElementById('noteStudent')?.value);return id?dnNotesRecordKey(id,document.getElementById('noteTerm')?.value||1):'';}
+function loadChosenNotes(){chosenDescriptiveNotes={};try{const key=notesStudentKey();if(key){const [id,year,term]=JSON.parse(key);chosenDescriptiveNotes[key]=dnNotesRead(id,term,year);}}catch(e){console.warn(e)}}''')
+    h=once(h,'(chosenDescriptiveNotes[`${roll}_${term}`]||[])','dnNotesRead(dnNotesOldRosterId(roll),term)')
+    h=block(h,'function saveChosenNotes(silent=false){','function notesForProgress(roll,term){',r'''function saveChosenNotes(silent=false){try{const key=notesStudentKey();if(!key)throw Error('विद्यार्थी निवडा.');const [id,year,term]=JSON.parse(key);dnNotesWrite(id,term,year,chosenDescriptiveNotes[key]||[]);dnNotesRefresh();const status=document.getElementById('notesStatus');if(status)status.textContent='वर्णनात्मक नोंदी जतन झाल्या.';return true}catch(e){if(!silent)alert(e.message);return false}}''')
+    h=once(h,'function notesForProgress(roll,term){','function notesForProgress(roll,term,studentId){')
+    h=once(h," let all={};try{all=JSON.parse(localStorage.getItem('gyanadaCCEDescriptiveNotes')||'{}')}catch(e){}\n const norm=",' const norm=')
+    h=once(h,"const list=all[String(roll)+'_'+t]||(t===1?all[String(roll)]:null)||[];","const list=dnNotesRead(studentId===undefined?dnNotesOldRosterId(roll):studentId,t);")
+    # Result roster: keep original marks behavior; pass the master ID separately for notes.
+    h=once(h,"const tr=document.createElement('tr');tr.className='gy-roster-row';","const tr=document.createElement('tr');tr.className='gy-roster-row';tr.dataset.dnStudentId=String(st.id||'');")
+    h=once(h,'gySelectRosterStudent(name,kind,target);','window.dnCCEProgressStudentId=String(st.id||\'\');gySelectRosterStudent(name,kind,target);')
+    h=once(h,"const notes=typeof notesForProgress==='function'?notesForProgress(roll,term):{};","const notes=typeof notesForProgress==='function'?notesForProgress(roll,term,dnNotesProgressId(roll)):{};")
+    h=once(h,"const student=roster[roll-1];\n  const values={};","const student=roster[roll-1];\n  const master=dnNotesById(dnNotesProgressId(roll));if(!master)return null;\n  const values={};")
+    h=once(h,"values.student=String(student.name||'').trim();values.roll=String(roll);","values.student=String(master.name||'').trim();values.roll=String(roll);")
+    h=once(h,"return {type:'GY_PROGRESS_FILL_V30',key:String(roll)+'|'+values.student,values};","return {type:'GY_PROGRESS_FILL_V30',key:dnNotesRecordKey(master.id,1),values};")
+    h=once(h,"if(e.data?.type==='GY_PROGRESS_READY_V30')schedule()","if(e.source===get(frameId)?.contentWindow&&e.data?.type==='GY_PROGRESS_READY_V30')schedule()")
+    h=once(h,'window.gySyncProgressGradesAndNotes=schedule;','window.gySyncProgressGradesAndNotes=function(){send();schedule()};')
+    # Select actual row rather than first occurrence of the same name.
+    h=once(h,'function select(name){\n  var row=Array.from(document.querySelectorAll(\'#studentRoster tr\')).find(function(r){return r.querySelector(\'.gy-student-heading strong\')?.textContent.trim()===name});',"function select(name,id){\n  var row=Array.from(document.querySelectorAll('#studentRoster tr')).find(function(r){return r.dataset.dnStudentId===id});")
+    h=once(h,'function refresh(name,printing){\n  if(!select(name))return;','function refresh(name,printing,id){\n  if(!dnNotesById(id)||!select(name,id))return;')
+    h=once(h,"function preview(name){refresh(name,false)}\n function download(name){refresh(name,true)}","function preview(name,id){refresh(name,false,id)}\n function download(name,id){refresh(name,true,id)}")
+    h=once(h,'view.onclick=function(){preview(name)};','view.onclick=function(){preview(name,row.dataset.dnStudentId)};')
+    h=once(h,'dl.onclick=function(){download(name)};','dl.onclick=function(){download(name,row.dataset.dnStudentId)};')
+    h=once(h,"window.dispatchEvent(new Event('change'));\n   if(printing)","window.gySyncProgressGradesAndNotes?.();\n   if(printing)")
+    # Main visible descriptive notebook.
+    h=once(h,"const state={roll:0,subject:'',view:'roster',draft:[],term:'1'};","const state={roll:0,id:'',year:'',subject:'',view:'roster',draft:[],term:'1'};")
+    h=block(h,'function records(){\n const base=','function getClass(st){',"function records(){return dnNotesMaster();}")
+    h=block(h,"function saved(){try{return JSON.parse(localStorage.getItem('gyanadaCCEDescriptiveNotes')||'{}')}catch(_){return {}}}","function root(){return $('gyNotesWorkflow');}",r'''function hydrate(){state.draft=dnNotesRead(state.id,state.term,state.year).map(x=>({subject:cat(x.subject)||x.subject,text:x.text})).filter(x=>subjects.includes(x.subject));}
+function store(){try{dnNotesWrite(state.id,state.term,state.year,state.draft);dnNotesRefresh();return true;}catch(e){alert('नोंदी जतन झाल्या नाहीत: '+e.message);return false;}}''')
+    h=once(h,"function title(){return esc(records()[state.roll-1]?.name||'');}","function title(){return esc(dnNotesById(state.id)?.name||'');}")
+    h=once(h,"function rosterView(){state.view='roster';","function rosterView(){state.view='roster';state.id='';state.draft=[];")
+    h=once(h,"data-roll=\"'+x.roll+'\">वर्णनात्मक नोंदी","data-roll=\"'+x.roll+'\" data-student-id=\"'+esc(x.st.id)+'\">वर्णनात्मक नोंदी")
+    h=once(h,"state.roll=+b.dataset.roll;state.term=$('gyNWTerm').value;hydrate();subjectView()","state.roll=+b.dataset.roll;state.id=b.dataset.studentId;state.year=dnNotesYear();state.term=$('gyNWTerm').value;if(!dnNotesById(state.id)){rosterView();return;}hydrate();subjectView()")
+    h=once(h,'const student=records()[state.roll-1]||{};','const student=dnNotesById(state.id);if(!student){alert(\'विद्यार्थी यादीत नाही.\');rosterView();return;}')
+    # one save button; optional explicit send and manual legacy recovery, no auto assignment.
+    old='<button class="gyNWPrimary" id="gyNWSave">विद्यार्थ्याच्या नोंदी जतन करा</button>'
+    new='<button class="gyNWPrimary" id="gyNWSave">सेव्ह करा</button><button class="gyNWPrimary" id="gyNWSend">प्रगतीपत्रकात पाठवा</button>'
+    if h.count(old)!=2: raise SystemExit('STOP: notebook save buttons')
+    h=h.replace(old,new)
+    h=once(h,'<button class="gyNWBack" id="gyNWAnother">विषयांच्या यादीकडे या</button>','')
+    h=once(h,"$('gyNWBackSubjects').onclick=subjectView;$('gyNWAnother').onclick=subjectView;","$('gyNWBackSubjects').onclick=subjectView;")
+    h=once(h,"$('gyNWBackRoster').onclick=rosterView;root().querySelectorAll('[data-sub]')", "$('gyNWBackRoster').onclick=rosterView;const recovery=document.createElement('button');recovery.type='button';recovery.className='gyNWBack';recovery.textContent='जुन्या नोंदी तपासून आणा';recovery.onclick=()=>{try{if(dnNotesRecover(state.id,state.term,state.year)){hydrate();subjectView();dnNotesRefresh();}}catch(e){alert(e.message)}};root().appendChild(recovery);root().querySelectorAll('[data-sub]')")
+    old="$('gyNWSave').onclick=save;"
+    if h.count(old)!=2: raise SystemExit('STOP: notebook save handlers')
+    h=h.replace(old,"$('gyNWSave').onclick=save;$('gyNWSend').onclick=sendToProgress;")
+    h=once(h,"function save(){store();let e=$('gyNWStatus');if(e)e.textContent='निवडलेल्या नोंदी यशस्वीपणे जतन झाल्या.';}",r'''function save(){if(!store())return;let e=$('gyNWStatus');if(e)e.textContent='निवडलेल्या नोंदी यशस्वीपणे जतन झाल्या.';}
+function sendToProgress(){if(!store())return;let e=$('gyNWStatus');if(e)e.textContent='नोंदी जतन झाल्या. या विद्यार्थ्याचे प्रगतीपत्रक उघडल्यावर नोंदी आपोआप दिसतील.';}
+window.addEventListener('message',e=>{if(e.source!==parent||e.data?.type!=='GYANADA_STUDENT_DATA'||!root())return;if(state.view==='roster'||!dnNotesById(state.id))rosterView();});''')
+    # Old competing progress renderer must use the same canonical reader, not roll-only storage.
+    h=once(h,"const KEY='gyanadaCCEDescriptiveNotes', $=id=>document.getElementById(id);","const KEY=dnNoteKey, $=id=>document.getElementById(id);")
+    a=h.index('function read(roll,term){',h.index('id="gy-progress-descriptive-sync-unified-20261117"'))
+    b=h.index('function sync(){',a)
+    h=h[:a]+"function read(roll,term){return notesForProgress(roll,term);}\n"+h[b:]
+    h=once(h,"const oldSet=Storage.prototype.setItem;\nStorage.prototype.setItem=function(key,value){const result=oldSet.apply(this,arguments);if(key===KEY)schedule();return result};",'// Scoped storage saves call dnNotesRefresh explicitly.')
+    # Refresh and hide an invalid current preview on student-list changes; no fallback to legacy roster.
+    # This source has no final body tag; the last literal </body> is inside a print template.
+    if not h.rstrip().endswith('</script>'):raise SystemExit('STOP: unexpected CCE document ending')
+    h=h+r'''
+<script id="dn-cce-stable-notes-refresh">(function(){
+function refresh(){const id=window.dnCCEProgressStudentId;if(id&&!dnNotesById(id)){const f=document.getElementById('gyEmbedded2');if(f){f.style.display='none';try{for(const el of f.contentDocument.querySelectorAll('#approvedProgress [data-field]'))el.value='';}catch(e){}}const heading=document.getElementById('gyProgressPreviewHeading');if(heading)heading.hidden=true;}dnNotesRefresh();}
+window.addEventListener('message',e=>{if(e.source===parent&&e.data?.type==='GYANADA_STUDENT_DATA')refresh();});
+window.addEventListener('pageshow',refresh);
+})();</script>'''
+    return h
+
+def patch_module(name,h):
+    if MARK in h:return h
+    if hashlib.sha256(h.encode()).hexdigest()!=EXPECTED[name]:raise SystemExit('STOP: source has changed; review '+name)
+    return patch_cce(h) if name=='cceFrame' else patch_class(h)
+
+def patch_shell(s):
+    matches=list(re.finditer(r'(<script\b[^>]*\bid="dn-payload"[^>]*>)([A-Za-z0-9+/=]+)(</script>)',s))
+    if len(matches)!=1:raise SystemExit('STOP: account isolation shell missing')
+    m=matches[0];payload=base64.b64decode(m[2],validate=True).decode()
+    for name in EXPECTED:
+        ms=list(re.finditer(r'(\b'+name+r':\s*")([A-Za-z0-9+/=]+)(")',payload))
+        if len(ms)!=1:raise SystemExit('STOP: module missing or duplicated: '+name)
+        x=ms[0];old=base64.b64decode(x[2],validate=True).decode();new=patch_module(name,old)
+        payload=payload[:x.start(2)]+base64.b64encode(new.encode()).decode()+payload[x.end(2):]
+    return s[:m.start(2)]+base64.b64encode(payload.encode()).decode()+s[m.end(2):]
+
+
+output=patch_shell(output)
 p.write_text(output);c.write_text(cloud)
 print('Cloud script content version:', version)
 print('Account isolation candidate built; browser testing required')
